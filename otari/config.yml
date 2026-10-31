@@ -1,0 +1,16 @@
+# Otari gateway config. Provider keys come from the environment (see .env.example).
+# Config reference: https://github.com/mozilla-ai/otari/blob/main/docs/configuration.md
+default_pricing: true
+database_url: "sqlite+aiosqlite:////data/otari.db"
+
+providers:
+  openai:
+    api_key: ${OPENAI_API_KEY}
+
+  # Optional: a self-hosted OpenAI-compatible model (Ollama, llama.cpp server, llamafile...)
+  # to use as OTARI_FALLBACK_MODEL when the hosted provider is unreachable.
+  # local:
+  #   provider_type: openai
+  #   api_base: "http://host.docker.internal:11434/v1"
+  #   api_key: "unused"
+  #   models: [llama3.2]

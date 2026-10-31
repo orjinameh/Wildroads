@@ -1,0 +1,30 @@
+services:
+  otari:
+    image: mzdotai/otari:latest
+    command: ["otari", "serve", "--config", "/etc/otari/config.yml"]
+    env_file: .env # OTARI_MASTER_KEY, OPENAI_API_KEY, OTARI_PROVIDER_ACCOUNT_PEPPER ...
+    volumes:
+      - ./otari/config.yml:/etc/otari/config.yml:ro
+      - otari-data:/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  app:
+    build: ./app
+    depends_on: [otari]
+    environment:
+      OTARI_BASE_URL: http://otari:8000
+      OTARI_MASTER_KEY: ${OTARI_MASTER_KEY}
+      OTARI_MODEL: ${OTARI_MODEL:-}
+      OTARI_FALLBACK_MODEL: ${OTARI_FALLBACK_MODEL:-}
+      DATA_DIR: /data
+    volumes:
+      - app-data:/data
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  otari-data:
+  app-data:

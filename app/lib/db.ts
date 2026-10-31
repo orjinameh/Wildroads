@@ -8,16 +8,6 @@ type Db = InstanceType<Sqlite["DatabaseSync"]>;
 
 let db: Db | null = null;
 
-export const CELL_DEG = 0.0002; // ~22 m grid, the only location resolution stored
-
-export function cellOf(lat: number, lon: number) {
-  return { cellLat: Math.round(lat / CELL_DEG), cellLon: Math.round(lon / CELL_DEG) };
-}
-
-export function cellCenter(cellLat: number, cellLon: number) {
-  return { lat: cellLat * CELL_DEG, lon: cellLon * CELL_DEG };
-}
-
 export function getDb(): Db {
   if (db) return db;
   const sqlite = process.getBuiltinModule("node:sqlite") as Sqlite;

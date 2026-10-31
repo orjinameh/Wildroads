@@ -2,6 +2,7 @@ import { loadCells } from "@/lib/cells";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // seconds; the model may run code before answering
 
 const SYSTEM_PROMPT = `You are a careful analyst writing a short road-condition report for a community group or road agency.
 You receive aggregated, crowd-sourced phone-vibration data for road cells of about 22 m.
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
     /* body is optional */
   }
 
-  const { cells, totalSegments, totalTrips } = loadCells();
+  const { cells, totalSegments, totalTrips } = await loadCells();
   if (cells.length === 0) {
     return Response.json({ error: "No road data has been uploaded yet. Record a trip first." }, { status: 409 });
   }

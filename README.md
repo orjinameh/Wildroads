@@ -57,6 +57,25 @@ set the port back to Private afterwards. iPhone asks for Motion & Orientation pe
 `cd app && npm test` runs the signal-processing tests (known-amplitude sine waves through the filter
 and segmenter). They are maths checks; the app itself never generates or simulates signals.
 
+## Deploy on Vercel with MongoDB Atlas
+
+Vercel functions have a disposable disk, so SQLite cannot be used there. When `MONGODB_URI` is set the
+app stores data in MongoDB Atlas instead (same data model, same results). Otari is a server, not a
+serverless function, so it needs its own host.
+
+1. **Atlas:** create a free cluster and a database user. Under Network Access allow `0.0.0.0/0`, because
+   Vercel functions have no fixed IP addresses, and use a strong password. Copy the connection string.
+2. **Otari:** deploy the gateway on Render or Railway (see Otari's Deployment docs), set its master key and
+   provider key, then create a virtual key per member in its dashboard. Note its public URL.
+3. **Vercel:** import the repository and set **Root Directory** to `app`. Add these environment variables:
+   `MONGODB_URI`, `OTARI_BASE_URL` (the public Otari URL), `OTARI_MODEL`, `OTARI_MASTER_KEY`, and optionally
+   `MONGODB_DB` and `OTARI_FALLBACK_MODEL`.
+4. Open the Vercel URL on your phone. It is HTTPS, so motion sensors and GPS work.
+
+Notes: the report route asks for up to 60 s, and your Vercel plan may cap function duration lower, so check
+it. The upload endpoint has no rate limiting, so a public URL can be filled with junk; Atlas free-tier storage
+is limited (check the current limit).
+
 ## Next (not built yet)
 
 1. Calibrate against a reference road survey in a pilot, so the index means the same thing across phones.
@@ -80,7 +99,7 @@ Most of the stack can be checked before you have a trip:
 ## Status and known limits
 
 - Verified: segment engine unit tests (8/8), strict type-check of the engine and sensor modules.
-- **Not yet verified end to end:** `next build`, the Otari integration (compose flags, chat call,
+- **Not yet verified end to end:** `next build`, the MongoDB Atlas store (no live cluster was available), the Otari integration (compose flags, chat call,
   usage summary shape) and on-phone recording. Run them and fix what they surface.
 - Otari key creation is done in its dashboard; the key/budget REST schema was not available to read.
 - Cells are a fixed ~22 m grid, so a pass can split across two neighbouring cells. Map-matching to

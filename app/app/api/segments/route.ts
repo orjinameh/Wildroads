@@ -1,4 +1,5 @@
-import { cellOf, getDb } from "@/lib/db";
+import { cellOf } from "@/lib/grid";
+import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,22 +56,13 @@ export async function POST(req: Request) {
     rows.push({ cellLat, cellLon, rri, speedKph, samples });
   }
 
-  const db = getDb();
-  const exists = db.prepare("SELECT 1 AS x FROM segments WHERE trip_id = ? LIMIT 1").get(tripId);
-  if (exists) return bad("This trip was already uploaded.", 409);
-
   const day = new Date().toISOString().slice(0, 10); // server-side UTC day, never client time
-  const insert = db.prepare(
-    `INSERT INTO segments (trip_id, day, cell_lat, cell_lon, rri, speed_kph, samples, device_class, rate_hz)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  db.exec("BEGIN");
   try {
-    for (const r of rows) insert.run(tripId, day, r.cellLat, r.cellLon, r.rri, r.speedKph, r.samples, deviceClass, rateHz);
-    db.exec("COMMIT");
+    const store = await getStore();
+    const outcome = await store.insertTrip({ tripId, day, deviceClass, rateHz, rows });
+    if (outcome === "duplicate") return bad("This trip was already uploaded.", 409);
   } catch (err) {
-    db.exec("ROLLBACK");
-    return bad(err instanceof Error ? err.message : "Database error.", 500);
+    return bad(err instanceof Error ? err.message : "Storage error.", 500);
   }
   return Response.json({ ok: true, stored: rows.length });
 }

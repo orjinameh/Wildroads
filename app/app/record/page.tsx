@@ -40,6 +40,8 @@ export default function RecordPage() {
   const [rateHz, setRateHz] = useState<number | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [uploaded, setUploaded] = useState<number | null>(null);
+  const [gpsAcc, setGpsAcc] = useState<number | null>(null);
+  const gpsPoll = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const m = motion.current;
@@ -55,11 +57,24 @@ export default function RecordPage() {
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       if (timer.current) clearInterval(timer.current);
+      if (gpsPoll.current) clearInterval(gpsPoll.current);
       m.stop();
       g.stop();
       void wake.current?.release();
     };
   }, []);
+
+  function startGpsPreview() {
+    gps.current.clear();
+    gps.current.start();
+    if (gpsPoll.current) clearInterval(gpsPoll.current);
+    gpsPoll.current = setInterval(() => setGpsAcc(gps.current.lastAccuracy), 1000);
+  }
+
+  function stopGpsPreview() {
+    if (gpsPoll.current) clearInterval(gpsPoll.current);
+    gpsPoll.current = null;
+  }
 
   async function enableSensors() {
     setError(null);
@@ -83,11 +98,25 @@ export default function RecordPage() {
         setError("This browser has no geolocation.");
         return;
       }
-      await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 20000 }),
-      ).catch((e: GeolocationPositionError) => {
-        throw new Error(e.code === 1 ? "Location access was denied. Allow location for this site." : `Could not get a GPS fix: ${e.message}`);
-      });
+      let noFix = false;
+      try {
+        await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 }),
+        );
+      } catch (e) {
+        const code = (e as { code?: number }).code;
+        if (code === 1) {
+          setError("Location access was denied. Allow it for this site (iPhone: Settings → Privacy & Security → Location Services → Safari Websites → While Using, with Precise Location on).");
+          return;
+        }
+        noFix = true; // permission is fine; there is just no satellite lock yet (common indoors)
+      }
+      startGpsPreview();
+      setWarning(
+        noFix
+          ? "Location permission is OK but there is no GPS lock yet (common indoors). You can do the baseline now, but go outside with a clear view of the sky before starting a trip."
+          : null,
+      );
       setPhase("baseline");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -127,6 +156,7 @@ export default function RecordPage() {
   }
 
   async function startTrip() {
+    stopGpsPreview();
     setError(null);
     setWarning(null);
     hiddenDuringTrip.current = false;
@@ -203,11 +233,21 @@ export default function RecordPage() {
   }
 
   function discard() {
+    startGpsPreview();
     setResult(null);
     setWarning(null);
     setError(null);
     setPhase("ready");
   }
+
+  const gpsStatus = (
+    <p className="small muted">
+      GPS:{" "}
+      {gpsAcc === null
+        ? "waiting for a fix… go outside with a clear view of the sky"
+        : `${gpsAcc.toFixed(0)} m accuracy${gpsAcc > DEFAULT_CONFIG.maxAccuracyM ? " (too coarse, keep waiting)" : " ✓"}`}
+    </p>
+  );
 
   const medianRri = result && result.segments.length ? median(result.segments.map((s) => s.rri)) : null;
 
@@ -231,6 +271,7 @@ export default function RecordPage() {
         <div className="card">
           <h2 style={{ marginTop: 0 }}>2. Device baseline</h2>
           <p className="muted">Lay the phone flat and still for {BASELINE_SECONDS} seconds. This measures this phone’s own sensor noise so it can be subtracted.</p>
+          {gpsStatus}
           <div className="row">
             <button onClick={runBaseline} disabled={busy}>{busy ? `Hold still… ${countdown}s` : "Start baseline"}</button>
             <button className="secondary" onClick={() => setPhase("ready")} disabled={busy}>Skip (less accurate)</button>
@@ -248,6 +289,7 @@ export default function RecordPage() {
           {baseline.rateHz !== null && baseline.rateHz < 20 && (
             <div className="warn">This phone reports motion at under 20 Hz, which is low for road vibration. Results will be coarse.</div>
           )}
+          {gpsStatus}
           <p className="small muted">The first and last {DEFAULT_CONFIG.trimStartM} m of every trip are discarded automatically so your start and end points are never stored.</p>
           <div className="row">
             <button onClick={startTrip}>Start recording</button>
@@ -302,7 +344,7 @@ export default function RecordPage() {
           <div className="ok">Uploaded {uploaded} segments. Thank you.</div>
           <div className="row">
             <a className="btn" href="/">See the map</a>
-            <button className="secondary" onClick={() => { setResult(null); setUploaded(null); setPhase("ready"); }}>Record another trip</button>
+            <button className="secondary" onClick={() => { startGpsPreview(); setResult(null); setUploaded(null); setPhase("ready"); }}>Record another trip</button>
           </div>
         </div>
       )}

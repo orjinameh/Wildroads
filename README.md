@@ -61,15 +61,15 @@ and segmenter). They are maths checks; the app itself never generates or simulat
 
 Vercel functions have a disposable disk, so SQLite cannot be used there. When `MONGODB_URI` is set the
 app stores data in MongoDB Atlas instead (same data model, same results). Otari is a server, not a
-serverless function, so it needs its own host.
+serverless function. For the hackathon use the hosted platform at otari.ai; to self-host, run it separately.
 
 1. **Atlas:** create a free cluster and a database user. Under Network Access allow `0.0.0.0/0`, because
    Vercel functions have no fixed IP addresses, and use a strong password. Copy the connection string.
-2. **Otari:** deploy the gateway on Render or Railway (see Otari's Deployment docs), set its master key and
-   provider key, then create a virtual key per member in its dashboard. Note its public URL.
+2. **Otari (hosted, required by the hackathon):** sign up at otari.ai, open **API Keys → Create Key** to get an
+   `otk_...` key, and pick models in the **Models** tab. Self-hosting instead is documented in Otari's Deployment docs.
 3. **Vercel:** import the repository and set **Root Directory** to `app`. Add these environment variables:
-   `MONGODB_URI`, `OTARI_BASE_URL` (the public Otari URL), `OTARI_MODEL`, `OTARI_MASTER_KEY`, and optionally
-   `MONGODB_DB` and `OTARI_FALLBACK_MODEL`.
+   `MONGODB_URI`, `OTARI_BASE_URL` (`https://api.otari.ai/v1` for the hosted platform), `OTARI_MODEL` (analyst), `OTARI_WRITER_MODEL` (writer), and optionally
+   `MONGODB_DB`. `OTARI_MASTER_KEY` is only for a self-hosted gateway (the Ledger page).
 4. Open the Vercel URL on your phone. It is HTTPS, so motion sensors and GPS work.
 
 Notes: the report route asks for up to 60 s, and your Vercel plan may cap function duration lower, so check

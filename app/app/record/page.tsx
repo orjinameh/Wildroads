@@ -252,7 +252,7 @@ export default function RecordPage() {
   const medianRri = result && result.segments.length ? median(result.segments.map((s) => s.rri)) : null;
 
   return (
-    <>
+    <div className="content">
       <h1>Record a trip</h1>
       <p className="lead">Mount the phone firmly in the vehicle (dashboard or cradle, not loose in a bag) and keep this page open with the screen on.</p>
 
@@ -348,6 +348,6 @@ export default function RecordPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

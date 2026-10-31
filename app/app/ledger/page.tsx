@@ -26,7 +26,7 @@ export default function LedgerPage() {
       : undefined;
 
   return (
-    <>
+    <div className="content">
       <h1>Usage ledger</h1>
       <p className="lead">AI spend per member, read directly from the community’s Otari gateway. Nothing on this page is computed or estimated by this app.</p>
 
@@ -56,6 +56,6 @@ export default function LedgerPage() {
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }

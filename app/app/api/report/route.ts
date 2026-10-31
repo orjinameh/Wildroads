@@ -144,8 +144,8 @@ export async function POST(req: Request) {
       fellBack = true;
     }
     if (r instanceof Error) return { error: `Could not reach Otari (${role}): ${r.message}`, status: 502 };
-    if (search && (r.status === 400 || r.status === 422)) {
-      // This model or gateway rejected the web search tool: retry once without it, and say so in the response.
+    if (search && !r.ok && r.status !== 401 && r.status !== 402 && r.status !== 429 && /search/i.test(await r.clone().text())) {
+      // The workspace, key or model refused the web search tool: retry once without it, and say so in the response.
       search = false;
       const again = await attempt(used);
       if (again instanceof Error) return { error: `Could not reach Otari (${role}): ${again.message}`, status: 502 };

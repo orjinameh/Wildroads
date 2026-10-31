@@ -17,12 +17,14 @@ RULES
 - Use ONLY the data provided. Never invent street names, places, causes or repair costs: you only have coordinates.
 - Use the code execution tool to compute every number (counts, percentiles, ranking, clusters of cells within about 60 m of each other). Do not estimate by eye.
 - A finding that rests on cells with trips < 2 is UNCONFIRMED.
+- If "area" is not null, use the web search tool to find which public agency is responsible for roads in that area and where it accepts reports. Only report a name and URL that appear in the search results; if you are not sure, use null. Never guess a phone number or email.
 
 OUTPUT (compact JSON only, no markdown):
 {"overall":{"cells":n,"trips":n,"median_rri":x,"p90_rri":x,"confirmed_cells":n},
  "clusters":[{"lat":x,"lon":x,"cells":n,"mean_rri":x,"min_trips":n,"max_trips":n,"confirmed":true|false}],
  "traffic":{"cells":n,"slow_cells_by_daypart":{"0":n,"1":n,"2":n,"3":n},"median_speed_by_daypart":{"0":x,"1":x,"2":x,"3":x},
    "slow_clusters":[{"lat":x,"lon":x,"cells":n,"mean_kph":x,"daypart":d,"min_trips":n}]},
+ "agency":{"name":"...","url":"https://..."} or null,
  "limits":["..."]}
 Use null where a daypart has no readings. Return at most 8 roughness clusters (roughest first) and at most 5 slow clusters (slowest first).`;
 
@@ -38,8 +40,9 @@ RULES
 OUTPUT
 1. Summary (3 sentences maximum)
 2. Top hotspot clusters (list: centre lat/lon, number of cells, mean roughness, trips)
-3. Traffic (only if the findings contain speed readings; say which parts of the day have data and which have none)
-4. What this data cannot tell you (always say traffic covers only roads our users drove, and that one trip cannot separate congestion from a red light or parked car)`;
+3. Who to send this to (only if the findings include an agency; use its name and url exactly as given, otherwise leave this section out)
+4. Traffic (only if the findings contain speed readings; say which parts of the day have data and which have none)
+5. What this data cannot tell you (always say traffic covers only roads our users drove, and that one trip cannot separate congestion from a red light or parked car)`;
 
 function cleanLabel(v: string | null): string {
   const s = (v ?? "").replace(/[^A-Za-z0-9 _.-]/g, "").trim().slice(0, 40);
@@ -53,7 +56,7 @@ function chatUrl(base: string): string {
   return /\/v1$/.test(b) ? `${b}/chat/completions` : `${b}/api/v1/chat/completions`;
 }
 
-async function callOtari(base: string, key: string, model: string, member: string, role: "analyst" | "writer", system: string, userContent: string) {
+async function callOtari(base: string, key: string, model: string, member: string, role: "analyst" | "writer", system: string, userContent: string, webSearch: boolean) {
   const body: Record<string, unknown> = {
     model,
     messages: [
@@ -62,12 +65,13 @@ async function callOtari(base: string, key: string, model: string, member: strin
     ],
     metadata: { app: "wildroads", member, role }, // tags: usage can be grouped by member and by role
   };
-  if (role === "analyst") body.tools = [{ type: "otari_code_execution" }]; // only the analyst runs code
+  // Only the analyst gets tools: code execution always, web search when an area was given.
+  if (role === "analyst") body.tools = webSearch ? [{ type: "otari_code_execution" }, { type: "otari_web_search" }] : [{ type: "otari_code_execution" }];
   return fetch(chatUrl(base), {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(role === "analyst" ? 90000 : 40000),
+    signal: AbortSignal.timeout(role === "analyst" ? 100000 : 40000),
   });
 }
 
@@ -85,9 +89,11 @@ export async function POST(req: Request) {
   const member = cleanLabel(req.headers.get("x-member"));
 
   let focus = "";
+  let area = "";
   try {
-    const body = (await req.json()) as { focus?: unknown };
+    const body = (await req.json()) as { focus?: unknown; area?: unknown };
     if (typeof body.focus === "string") focus = body.focus.slice(0, 200);
+    if (typeof body.area === "string") area = body.area.replace(/[^\p{L}\p{N} ,.'-]/gu, "").trim().slice(0, 60);
   } catch {
     /* body is optional */
   }
@@ -110,6 +116,7 @@ export async function POST(req: Request) {
     totalSegments,
     totalTrips,
     focus: focus || null,
+    area: area || null,
     traffic: [...traffic]
       .sort((a, b) => Math.min(...a.bands.map((x) => x.speedKph)) - Math.min(...b.bands.map((x) => x.speedKph)))
       .slice(0, 300)
@@ -118,10 +125,12 @@ export async function POST(req: Request) {
   };
 
   // One stage: try the primary model; on a network error or 5xx, try the other model once.
-  const runStage = async (role: "analyst" | "writer", system: string, user: string, primary: string, alt: string): Promise<Stage> => {
+  let webSearchUsed = false;
+  const runStage = async (role: "analyst" | "writer", system: string, user: string, primary: string, alt: string, wantSearch = false): Promise<Stage> => {
+    let search = wantSearch;
     const attempt = async (m: string): Promise<Response | Error> => {
       try {
-        return await callOtari(base, key, m, member, role, system, user);
+        return await callOtari(base, key, m, member, role, system, user, search);
       } catch (err) {
         return err instanceof Error ? err : new Error(String(err));
       }
@@ -135,10 +144,18 @@ export async function POST(req: Request) {
       fellBack = true;
     }
     if (r instanceof Error) return { error: `Could not reach Otari (${role}): ${r.message}`, status: 502 };
+    if (search && (r.status === 400 || r.status === 422)) {
+      // This model or gateway rejected the web search tool: retry once without it, and say so in the response.
+      search = false;
+      const again = await attempt(used);
+      if (again instanceof Error) return { error: `Could not reach Otari (${role}): ${again.message}`, status: 502 };
+      r = again;
+    }
+    if (role === "analyst") webSearchUsed = search;
     const raw = await r.text();
     if (!r.ok) {
       // Budget and key errors come straight from Otari; show them as they are.
-      const pass = r.status === 401 || r.status === 403 || r.status === 429;
+      const pass = r.status === 401 || r.status === 402 || r.status === 403 || r.status === 429;
       return { error: `Otari returned ${r.status} (${role}): ${raw.slice(0, 500)}`, status: pass ? r.status : 502 };
     }
     let content: string | null = null;
@@ -153,11 +170,11 @@ export async function POST(req: Request) {
     return { content, model: used, fellBack };
   };
 
-  const analysis = await runStage("analyst", ANALYST_PROMPT, JSON.stringify(payload), analystModel, writerModel);
-  if ("error" in analysis) return Response.json({ error: analysis.error, stage: "analyst" }, { status: analysis.status });
+  const analysis = await runStage("analyst", ANALYST_PROMPT, JSON.stringify(payload), analystModel, writerModel, Boolean(area));
+  if ("error" in analysis) return Response.json({ error: analysis.error, stage: "analyst", budget: analysis.status === 402 || analysis.status === 429 }, { status: analysis.status });
 
   const writing = await runStage("writer", WRITER_PROMPT, analysis.content, writerModel, analystModel);
-  if ("error" in writing) return Response.json({ error: writing.error, stage: "writer", analysis: analysis.content, analystModel: analysis.model }, { status: writing.status });
+  if ("error" in writing) return Response.json({ error: writing.error, stage: "writer", budget: writing.status === 402 || writing.status === 429, analysis: analysis.content, analystModel: analysis.model }, { status: writing.status });
 
   return Response.json({
     report: writing.content,
@@ -165,6 +182,7 @@ export async function POST(req: Request) {
     analystModel: analysis.model,
     writerModel: writing.model,
     fallbacks: { analyst: analysis.fellBack, writer: writing.fellBack },
+    webSearch: Boolean(area) ? webSearchUsed : null,
     cellsAnalysed: top.length,
     totalCells: cells.length,
   });

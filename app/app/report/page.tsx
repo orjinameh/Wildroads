@@ -9,6 +9,8 @@ type ReportResponse = {
   writerModel?: string;
   fallbacks?: { analyst: boolean; writer: boolean };
   stage?: string;
+  budget?: boolean;
+  webSearch?: boolean | null;
   cellsAnalysed?: number;
   totalCells?: number;
   error?: string;
@@ -18,6 +20,7 @@ export default function ReportPage() {
   const [member, setMember] = useState("");
   const [key, setKey] = useState(""); // kept in memory only, never persisted
   const [focus, setFocus] = useState("");
+  const [area, setArea] = useState("");
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<ReportResponse | null>(null);
 
@@ -42,7 +45,7 @@ export default function ReportPage() {
       const res = await fetch("/api/report", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-otari-key": key, "x-member": member },
-        body: JSON.stringify({ focus }),
+        body: JSON.stringify({ focus, area }),
       });
       const json = (await res.json()) as ReportResponse;
       setOut(json);
@@ -65,6 +68,8 @@ export default function ReportPage() {
         <input id="member" type="text" value={member} onChange={(e) => setMember(e.target.value)} maxLength={40} placeholder="e.g. lagos-mainland-group" />
         <label htmlFor="key">Otari virtual key</label>
         <input id="key" type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" placeholder="Paste your key (not stored)" />
+        <label htmlFor="area">City or area (optional, lets the analyst search the web for the responsible road agency)</label>
+        <input id="area" type="text" value={area} onChange={(e) => setArea(e.target.value)} maxLength={60} placeholder="e.g. Lagos, Nigeria" />
         <label htmlFor="focus">Optional focus (max 200 characters)</label>
         <input id="focus" type="text" value={focus} onChange={(e) => setFocus(e.target.value)} maxLength={200} placeholder="e.g. highlight clusters seen on 2 or more trips" />
         <div className="row" style={{ marginTop: 14 }}>
@@ -72,6 +77,7 @@ export default function ReportPage() {
         </div>
       </div>
 
+      {out?.budget && <div className="warn"><strong>Budget limit reached.</strong> Otari refused this request because the budget on your key is used up. Ask the community admin to raise it, or use a key with room left.</div>}
       {out?.error && <div className="error">{out.stage ? `Failed at the ${out.stage} step. ` : ""}{out.error}</div>}
       {out?.error && out.analysis && (
         <details>
@@ -82,7 +88,7 @@ export default function ReportPage() {
       {out?.report && (
         <div className="card">
           <p className="small muted">
-            Analyst: {out.analystModel}{out.fallbacks?.analyst ? " (fallback used)" : ""} · Writer: {out.writerModel}{out.fallbacks?.writer ? " (fallback used)" : ""} · analysed {out.cellsAnalysed} of {out.totalCells} cells
+            Analyst: {out.analystModel}{out.fallbacks?.analyst ? " (fallback used)" : ""} · Writer: {out.writerModel}{out.fallbacks?.writer ? " (fallback used)" : ""} · analysed {out.cellsAnalysed} of {out.totalCells} cells{out.webSearch === true ? " · web search used" : out.webSearch === false ? " · web search was not available, report written without it" : ""}
           </p>
           <pre className="report">{out.report}</pre>
           {out.analysis && (

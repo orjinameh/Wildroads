@@ -70,7 +70,7 @@ serverless function. For the hackathon use the hosted platform at otari.ai; to s
 2. **Otari (hosted, required by the hackathon):** sign up at otari.ai, open **API Keys → Create Key** to get an
    `otk_...` key, and pick models in the **Models** tab. Self-hosting instead is documented in Otari's Deployment docs.
 3. **Vercel:** import the repository and set **Root Directory** to `app`. Add these environment variables:
-   `MONGODB_URI`, `OTARI_BASE_URL` (`https://eu.api.otari.ai/api/v1` for the hosted platform), `OTARI_MODEL` (analyst), `OTARI_WRITER_MODEL` (writer), and optionally
+   `MONGODB_URI`, `OTARI_BASE_URL` (`https://eu.api.otari.ai/api/v1` for the hosted platform), `OTARI_MODEL` (analyst), `OTARI_WRITER_MODEL` (writer), `OTARI_KEYS` (JSON map of community group name to its own `otk_` key, each key with its own budget; never sent to the browser), and optionally
    `MONGODB_DB`. `OTARI_MASTER_KEY` is only for a self-hosted gateway (the Ledger page).
 4. Open the Vercel URL on your phone. It is HTTPS, so motion sensors and GPS work.
 

@@ -44,9 +44,22 @@ OUTPUT
 4. Traffic (only if the findings contain speed readings; say which parts of the day have data and which have none)
 5. What this data cannot tell you (always say traffic covers only roads our users drove, and that one trip cannot separate congestion from a red light or parked car)`;
 
-function cleanLabel(v: string | null): string {
-  const s = (v ?? "").replace(/[^A-Za-z0-9 _.-]/g, "").trim().slice(0, 40);
-  return s || "anonymous";
+// Each community group has its own Otari key (with its own budget), kept on the server only.
+// OTARI_KEYS = {"lagos-mainland-group":"otk_...","demo-tiny-budget":"otk_..."}
+function groupKeys(): Record<string, string> {
+  try {
+    const parsed = JSON.parse(process.env.OTARI_KEYS ?? "{}") as Record<string, unknown>;
+    const out: Record<string, string> = {};
+    for (const [name, k] of Object.entries(parsed)) if (typeof k === "string" && k) out[name] = k;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+// Lists group names only, never keys.
+export async function GET() {
+  return Response.json({ groups: Object.keys(groupKeys()) });
 }
 
 // Hosted platform: OTARI_BASE_URL = https://eu.api.otari.ai/api/v1  -> {base}/chat/completions
@@ -84,19 +97,25 @@ export async function POST(req: Request) {
   if (!base || !analystModel || !writerModel) {
     return Response.json({ error: "OTARI_BASE_URL, OTARI_MODEL (analyst) and OTARI_WRITER_MODEL must be set on the server (model ids exactly as shown in the Otari Models tab)." }, { status: 503 });
   }
-  const key = req.headers.get("x-otari-key");
-  if (!key) return Response.json({ error: "Missing x-otari-key header: paste your Otari virtual key." }, { status: 401 });
-  const member = cleanLabel(req.headers.get("x-member"));
-
   let focus = "";
   let area = "";
+  let group = "";
   try {
-    const body = (await req.json()) as { focus?: unknown; area?: unknown };
+    const body = (await req.json()) as { focus?: unknown; area?: unknown; group?: unknown };
+    if (typeof body.group === "string") group = body.group;
     if (typeof body.focus === "string") focus = body.focus.slice(0, 200);
     if (typeof body.area === "string") area = body.area.replace(/[^\p{L}\p{N} ,.'-]/gu, "").trim().slice(0, 60);
   } catch {
     /* body is optional */
   }
+
+  const keys = groupKeys();
+  if (Object.keys(keys).length === 0) {
+    return Response.json({ error: "No community keys are configured on the server (OTARI_KEYS)." }, { status: 503 });
+  }
+  const key = Object.prototype.hasOwnProperty.call(keys, group) ? keys[group] : undefined;
+  if (!key) return Response.json({ error: "Choose a community group from the list." }, { status: 400 });
+  const member = group; // usage tag: spend is reported per group
 
   let loaded: Awaited<ReturnType<typeof loadCells>>;
   try {

@@ -189,7 +189,7 @@ button.danger { background: transparent; color: var(--bad); border-color: var(--
 button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .grab, .place { min-height: 0; }
 
-input[type="text"], input[type="password"], textarea {
+input[type="text"], input[type="password"], textarea, select {
   font: inherit; width: 100%; padding: 12px 14px; border-radius: 14px;
   border: 1.5px solid var(--line); background: var(--bg); color: var(--ink);
 }

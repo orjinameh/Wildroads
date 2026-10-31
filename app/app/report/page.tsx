@@ -17,20 +17,28 @@ type ReportResponse = {
 };
 
 export default function ReportPage() {
-  const [member, setMember] = useState("");
-  const [key, setKey] = useState(""); // kept in memory only, never persisted
+  const [groups, setGroups] = useState<string[] | null>(null);
+  const [group, setGroup] = useState("");
   const [focus, setFocus] = useState("");
   const [area, setArea] = useState("");
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<ReportResponse | null>(null);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("wildroads.member");
-      if (saved) setMember(saved);
-    } catch {
-      /* storage unavailable: ignore */
-    }
+    fetch("/api/report", { cache: "no-store" })
+      .then((r) => r.json() as Promise<{ groups?: string[] }>)
+      .then((j) => {
+        const g = j.groups ?? [];
+        setGroups(g);
+        let saved = "";
+        try {
+          saved = localStorage.getItem("wildroads.group") ?? "";
+        } catch {
+          /* storage unavailable: ignore */
+        }
+        setGroup(g.includes(saved) ? saved : (g[0] ?? ""));
+      })
+      .catch(() => setGroups([]));
   }, []);
 
   async function generate() {
@@ -38,14 +46,14 @@ export default function ReportPage() {
     setOut(null);
     try {
       try {
-        localStorage.setItem("wildroads.member", member);
+        localStorage.setItem("wildroads.group", group);
       } catch {
         /* ignore */
       }
       const res = await fetch("/api/report", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-otari-key": key, "x-member": member },
-        body: JSON.stringify({ focus, area }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ group, focus, area }),
       });
       const json = (await res.json()) as ReportResponse;
       setOut(json);
@@ -60,24 +68,27 @@ export default function ReportPage() {
     <div className="content">
       <h1>AI road report</h1>
       <p className="lead">
-        Two open-weight models work through Otari: an analyst runs code on the road data, then a writer turns its numbers into a plain report. Use your own Otari virtual key: its budget and model access are enforced by Otari, and your usage appears on the ledger under your member name.
+        Two open-weight models work through Otari: an analyst runs code on the road data, then a writer turns its numbers into a plain report. Each community group has its own spending limit, enforced by Otari. You never need a key.
       </p>
 
       <div className="card">
-        <label htmlFor="member">Member name (shown on the ledger)</label>
-        <input id="member" type="text" value={member} onChange={(e) => setMember(e.target.value)} maxLength={40} placeholder="e.g. lagos-mainland-group" />
-        <label htmlFor="key">Otari virtual key</label>
-        <input id="key" type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" placeholder="Paste your key (not stored)" />
+        <label htmlFor="group">Community group (its budget pays for the report)</label>
+        <select id="group" value={group} onChange={(e) => setGroup(e.target.value)} disabled={!groups || groups.length === 0}>
+          {(groups ?? []).map((g) => (
+            <option key={g} value={g}>{g}</option>
+          ))}
+        </select>
+        {groups && groups.length === 0 && <p className="small muted">No community groups are set up on this server yet.</p>}
         <label htmlFor="area">City or area (optional, lets the analyst search the web for the responsible road agency)</label>
         <input id="area" type="text" value={area} onChange={(e) => setArea(e.target.value)} maxLength={60} placeholder="e.g. Lagos, Nigeria" />
         <label htmlFor="focus">Optional focus (max 200 characters)</label>
         <input id="focus" type="text" value={focus} onChange={(e) => setFocus(e.target.value)} maxLength={200} placeholder="e.g. highlight clusters seen on 2 or more trips" />
         <div className="row" style={{ marginTop: 14 }}>
-          <button onClick={generate} disabled={busy || !key}>{busy ? "Generating…" : "Generate report"}</button>
+          <button onClick={generate} disabled={busy || !group}>{busy ? "Generating…" : "Generate report"}</button>
         </div>
       </div>
 
-      {out?.budget && <div className="warn"><strong>Budget limit reached.</strong> Otari refused this request because the budget on your key is used up. Ask the community admin to raise it, or use a key with room left.</div>}
+      {out?.budget && <div className="warn"><strong>Budget limit reached.</strong> Otari refused this request because this community group's budget is used up. Ask the group admin to raise it, or pick a group with room left.</div>}
       {out?.error && <div className="error">{out.stage ? `Failed at the ${out.stage} step. ` : ""}{out.error}</div>}
       {out?.error && out.analysis && (
         <details>

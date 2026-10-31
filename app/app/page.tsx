@@ -108,7 +108,10 @@ export default function MapPage() {
     let cancelled = false;
     fetch("/api/cells", { cache: "no-store" })
       .then(async (r) => {
-        if (!r.ok) throw new Error(`The server answered ${r.status}.`);
+        if (!r.ok) {
+          const j = (await r.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(j?.error ?? `The server answered ${r.status}.`);
+        }
         return (await r.json()) as CellsResponse;
       })
       .then((d) => !cancelled && setData(d))

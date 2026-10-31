@@ -61,7 +61,13 @@ export async function POST(req: Request) {
     /* body is optional */
   }
 
-  const { cells, totalSegments, totalTrips } = await loadCells();
+  let loaded: Awaited<ReturnType<typeof loadCells>>;
+  try {
+    loaded = await loadCells();
+  } catch (err) {
+    return Response.json({ error: err instanceof Error ? err.message : "Could not read road data." }, { status: 500 });
+  }
+  const { cells, totalSegments, totalTrips } = loaded;
   if (cells.length === 0) {
     return Response.json({ error: "No road data has been uploaded yet. Record a trip first." }, { status: 409 });
   }

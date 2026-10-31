@@ -9,6 +9,12 @@ let cached: Promise<Store> | null = null;
 export function getStore(): Promise<Store> {
   if (!cached) {
     const uri = process.env.MONGODB_URI;
+    if (!uri && process.env.VERCEL) {
+      // Vercel's disk is read-only and disposable, so the SQLite fallback can never work there.
+      return Promise.reject(
+        new Error("Storage is not configured. Add MONGODB_URI under Project Settings → Environment Variables in Vercel, then redeploy."),
+      );
+    }
     cached = uri
       ? import("./store-mongo").then((m) => m.createMongoStore(uri))
       : import("./store-sqlite").then((m) => m.createSqliteStore());

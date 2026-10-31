@@ -49,7 +49,7 @@ function cleanLabel(v: string | null): string {
   return s || "anonymous";
 }
 
-// Hosted platform: OTARI_BASE_URL = https://api.otari.ai/v1  -> {base}/chat/completions
+// Hosted platform: OTARI_BASE_URL = https://eu.api.otari.ai/api/v1  -> {base}/chat/completions
 // Self-hosted gateway: OTARI_BASE_URL = https://your-host     -> {base}/api/v1/chat/completions
 function chatUrl(base: string): string {
   const b = base.replace(/\/+$/, "");

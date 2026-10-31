@@ -10,7 +10,8 @@ export type GpsFix = { t: number; lat: number; lon: number; accuracy: number }; 
 
 export type SegmentConfig = {
   segmentLengthM: number;
-  minSpeedMps: number; // below this the segment is discarded (standing / crawling traffic)
+  minSpeedMps: number; // below this the segment has no roughness value (too slow to measure bumps)
+  minTrafficSpeedMps: number; // below this the segment is dropped entirely (standing still / GPS jitter)
   maxSpeedMps: number; // above this the segment is discarded (GPS glitch)
   maxAccuracyM: number; // GPS fixes worse than this are ignored
   trimStartM: number; // privacy: drop the first metres of a trip (origin)
@@ -25,6 +26,7 @@ export type SegmentConfig = {
 export const DEFAULT_CONFIG: SegmentConfig = {
   segmentLengthM: 25,
   minSpeedMps: 2.5,
+  minTrafficSpeedMps: 0.5,
   maxSpeedMps: 45,
   maxAccuracyM: 25,
   trimStartM: 200,
@@ -47,6 +49,9 @@ export type Segment = {
   samples: number;
 };
 
+// A segment too slow to measure roughness, kept only as a speed observation (traffic).
+export type SlowSegment = { lat: number; lon: number; speedMps: number };
+
 export type SegmentationStats = {
   gpsFixesIn: number;
   gpsFixesUsed: number;
@@ -54,13 +59,14 @@ export type SegmentationStats = {
   samplesIn: number;
   samplesUsed: number;
   segmentsKept: number;
-  droppedLowSpeed: number;
+  droppedLowSpeed: number; // too slow for roughness (see slowSegments for those kept as traffic)
+  slowKept: number;
   droppedHighSpeed: number;
   droppedCoverage: number;
   note: string | null; // set when nothing could be produced, says why
 };
 
-export type SegmentationResult = { segments: Segment[]; stats: SegmentationStats };
+export type SegmentationResult = { segments: Segment[]; slowSegments: SlowSegment[]; stats: SegmentationStats };
 
 const EARTH_R = 6371000;
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -178,6 +184,7 @@ export function segmentTrip(
     samplesUsed: 0,
     segmentsKept: 0,
     droppedLowSpeed: 0,
+    slowKept: 0,
     droppedHighSpeed: 0,
     droppedCoverage: 0,
     note: null,
@@ -187,7 +194,7 @@ export function segmentTrip(
   stats.gpsFixesUsed = fixes.length;
   if (fixes.length < 2) {
     stats.note = `Need at least 2 GPS fixes with accuracy <= ${cfg.maxAccuracyM} m; got ${fixes.length}.`;
-    return { segments: [], stats };
+    return { segments: [], slowSegments: [], stats };
   }
 
   const cum: number[] = [0];
@@ -200,7 +207,7 @@ export function segmentTrip(
   const hi = total - cfg.trimEndM;
   if (hi - lo < cfg.segmentLengthM) {
     stats.note = `Trip too short (${total.toFixed(0)} m) after trimming ${cfg.trimStartM + cfg.trimEndM} m for privacy.`;
-    return { segments: [], stats };
+    return { segments: [], slowSegments: [], stats };
   }
 
   const sorted = [...motion].sort((a, b) => a.t - b.t);
@@ -243,6 +250,7 @@ export function segmentTrip(
   };
 
   const segments: Segment[] = [];
+  const slowSegments: SlowSegment[] = [];
   const idxs = [...groups.keys()].sort((a, b) => a - b);
   for (const idx of idxs) {
     const g = groups.get(idx)!;
@@ -255,6 +263,10 @@ export function segmentTrip(
     const speed = seconds > 0 ? (g.dMax - g.dMin) / seconds : 0;
     if (speed < cfg.minSpeedMps) {
       stats.droppedLowSpeed++;
+      if (speed >= cfg.minTrafficSpeedMps) {
+        const m = positionAt((idx + 0.5) * cfg.segmentLengthM);
+        slowSegments.push({ lat: m.lat, lon: m.lon, speedMps: speed });
+      }
       continue;
     }
     if (speed > cfg.maxSpeedMps) {
@@ -277,8 +289,11 @@ export function segmentTrip(
     });
   }
   stats.segmentsKept = segments.length;
+  stats.slowKept = slowSegments.length;
   if (!segments.length) {
-    stats.note = "No segment met the speed and coverage requirements. Drive at 10 km/h or more with a good GPS lock.";
+    stats.note = slowSegments.length
+      ? `No segment was fast enough to measure roughness (needs about 10 km/h or more). ${slowSegments.length} slow-traffic speed readings were kept.`
+      : "No segment met the speed and coverage requirements. Drive at 10 km/h or more with a good GPS lock.";
   }
-  return { segments, stats };
+  return { segments, slowSegments, stats };
 }

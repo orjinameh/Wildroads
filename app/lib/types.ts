@@ -8,9 +8,16 @@ export type Cell = {
   speedKph: number;
 };
 
-export type CellsResult = { cells: Cell[]; totalSegments: number; totalTrips: number };
+// Speed seen in one cell during one part of the day. n = independent trips, speedKph = mean of per-trip mean speeds.
+export type TrafficBand = { daypart: number; n: number; speedKph: number };
+export type TrafficCell = { id: string; lat: number; lon: number; bands: TrafficBand[] };
+
+export type CellsResult = { cells: Cell[]; traffic: TrafficCell[]; totalSegments: number; totalTrips: number };
 
 export type NewSegment = { cellLat: number; cellLon: number; rri: number; speedKph: number; samples: number };
+
+// A segment too slow for roughness, kept only as a speed observation.
+export type NewSlow = { cellLat: number; cellLon: number; speedKph: number };
 
 export type NewTrip = {
   tripId: string;
@@ -18,6 +25,8 @@ export type NewTrip = {
   deviceClass: string;
   rateHz: number | null;
   rows: NewSegment[];
+  daypart: number; // 0-3, see lib/traffic.ts
+  slow: NewSlow[];
 };
 
 export interface Store {

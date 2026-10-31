@@ -19,6 +19,8 @@ whose spend is capped and attributed per member by Otari.
    trip are dropped so origin and destination are never stored.
 2. **Upload:** only segment summaries (location, RRI, speed, sample count). The server reduces
    location to a ~22 m grid cell, stores no timestamps beyond a UTC day and no identity.
+   Time of day is kept only as one of four bands (night, morning, midday, evening).
+   Segments too slow for roughness (crawling traffic, 2-9 km/h) are kept as speed readings only, which powers the Traffic layer.
 3. **Map:** cells are coloured relative to the data on screen. A cell measured on 2+ independent trips is "confirmed".
 4. **Report:** the server sends aggregated cells to a model through Otari with the `otari_code_execution`
    tool so statistics are computed in a sandbox, not guessed. The member's own Otari virtual key is used,

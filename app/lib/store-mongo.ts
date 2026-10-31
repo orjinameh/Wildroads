@@ -3,7 +3,7 @@
 //   segments: one document per ~22 m cell measurement; no identity, no timestamps beyond a UTC day
 import { MongoClient } from "mongodb";
 import { cellCenter } from "./grid";
-import type { Cell, CellsResult, NewTrip, Store } from "./types";
+import type { Cell, CellsResult, NewTrip, Store, TrafficCell } from "./types";
 
 // Reuse one client across invocations of a serverless function instance.
 const g = globalThis as unknown as { _wildroadsMongo?: Promise<MongoClient> };
@@ -13,9 +13,10 @@ export async function createMongoStore(uri: string): Promise<Store> {
   const client = await g._wildroadsMongo;
   const db = client.db(process.env.MONGODB_DB ?? "wildroads");
   const segments = db.collection("segments");
+  const speeds = db.collection("speeds"); // every segment's speed (incl. slow ones), by part of day
   const trips = db.collection<{ _id: string; day: string; deviceClass: string; rateHz: number | null; segments: number }>("trips");
 
-  await Promise.all([segments.createIndex({ tripId: 1 }), segments.createIndex({ cellLat: 1, cellLon: 1 })]);
+  await Promise.all([segments.createIndex({ tripId: 1 }), segments.createIndex({ cellLat: 1, cellLon: 1 }), speeds.createIndex({ tripId: 1 })]);
 
   return {
     async insertTrip(t: NewTrip) {
@@ -38,8 +39,14 @@ export async function createMongoStore(uri: string): Promise<Store> {
           })),
           { ordered: false },
         );
+        const speedDocs = [
+          ...t.rows.map((r) => ({ tripId: t.tripId, cellLat: r.cellLat, cellLon: r.cellLon, daypart: t.daypart, speedKph: r.speedKph })),
+          ...t.slow.map((r) => ({ tripId: t.tripId, cellLat: r.cellLat, cellLon: r.cellLon, daypart: t.daypart, speedKph: r.speedKph })),
+        ];
+        if (speedDocs.length) await speeds.insertMany(speedDocs, { ordered: false });
       } catch (e) {
         await segments.deleteMany({ tripId: t.tripId });
+        await speeds.deleteMany({ tripId: t.tripId });
         await trips.deleteOne({ _id: t.tripId });
         throw e;
       }
@@ -75,8 +82,26 @@ export async function createMongoStore(uri: string): Promise<Store> {
           speedKph: g2.speed,
         };
       });
+      const sp = await speeds
+        .aggregate<{ _id: { cl: number; co: number; dp: number }; speed: number; n: number }>([
+          { $group: { _id: { cl: "$cellLat", co: "$cellLon", dp: "$daypart", trip: "$tripId" }, speed: { $avg: "$speedKph" } } },
+          { $group: { _id: { cl: "$_id.cl", co: "$_id.co", dp: "$_id.dp" }, speed: { $avg: "$speed" }, n: { $sum: 1 } } },
+        ])
+        .toArray();
+      const tmap = new Map<string, TrafficCell>();
+      for (const r of sp) {
+        const key = `${r._id.cl}:${r._id.co}`;
+        let e = tmap.get(key);
+        if (!e) {
+          const c = cellCenter(r._id.cl, r._id.co);
+          e = { id: key, lat: c.lat, lon: c.lon, bands: [] };
+          tmap.set(key, e);
+        }
+        e.bands.push({ daypart: r._id.dp, n: r.n, speedKph: r.speed });
+      }
+      const traffic = [...tmap.values()].map((c) => ({ ...c, bands: c.bands.sort((a, b) => a.daypart - b.daypart) }));
       const [totalSegments, totalTrips] = await Promise.all([segments.countDocuments({}), trips.countDocuments({})]);
-      return { cells, totalSegments, totalTrips };
+      return { cells, traffic, totalSegments, totalTrips };
     },
   };
 }

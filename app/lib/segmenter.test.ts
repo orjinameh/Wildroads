@@ -108,3 +108,23 @@ test("too-short trips are rejected after privacy trimming", () => {
   assert.equal(res.segments.length, 0);
   assert.match(res.stats.note ?? "", /too short/i);
 });
+
+test("crawling traffic keeps no roughness but is kept as speed observations", () => {
+  const { mot, gps } = straightTrip(1.5, 600, 100, 1.0);
+  const res = segmentTrip(mot, gps, { trimStartM: 50, trimEndM: 50 });
+  assert.equal(res.segments.length, 0);
+  assert.ok(res.slowSegments.length > 0);
+  assert.equal(res.stats.slowKept, res.slowSegments.length);
+  for (const s of res.slowSegments) assert.ok(s.speedMps > 1.2 && s.speedMps < 1.8);
+});
+
+test("standing still (below the traffic floor) keeps nothing", () => {
+  const { mot, gps } = straightTrip(0.3, 600, 100, 1.0);
+  const res = segmentTrip(mot, gps, { trimStartM: 50, trimEndM: 50 });
+  assert.equal(res.slowSegments.length, 0);
+});
+
+test("normal driving produces no slow segments", () => {
+  const { mot, gps } = straightTrip(10, 1000, 100, 1.0);
+  assert.equal(segmentTrip(mot, gps).slowSegments.length, 0);
+});

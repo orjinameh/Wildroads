@@ -29,6 +29,15 @@ export function getDb(): Db {
     );
     CREATE INDEX IF NOT EXISTS idx_segments_cell ON segments(cell_lat, cell_lon);
     CREATE INDEX IF NOT EXISTS idx_segments_trip ON segments(trip_id);
+    CREATE TABLE IF NOT EXISTS speeds (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      trip_id TEXT NOT NULL,
+      cell_lat INTEGER NOT NULL,
+      cell_lon INTEGER NOT NULL,
+      daypart INTEGER NOT NULL,
+      speed_kph REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_speeds_cell ON speeds(cell_lat, cell_lon);
   `);
   db = d;
   return d;

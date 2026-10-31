@@ -12,6 +12,8 @@ type Incoming = {
   deviceClass?: unknown;
   rateHz?: unknown;
   segments?: unknown;
+  daypart?: unknown;
+  slow?: unknown;
 };
 
 const bad = (message: string, status = 400) => Response.json({ error: message }, { status });
@@ -31,9 +33,16 @@ export async function POST(req: Request) {
   if (typeof tripId !== "string" || !/^[A-Za-z0-9-]{8,64}$/.test(tripId)) return bad("tripId must be 8-64 letters, digits or dashes.");
   const deviceClass = body.deviceClass === "ios" || body.deviceClass === "android" ? body.deviceClass : "other";
   const rateHz = typeof body.rateHz === "number" && Number.isFinite(body.rateHz) && body.rateHz > 0 && body.rateHz < 1000 ? body.rateHz : null;
-  if (!Array.isArray(body.segments) || body.segments.length < 1 || body.segments.length > MAX_SEGMENTS) {
-    return bad(`segments must be an array of 1-${MAX_SEGMENTS} items.`);
+  if (!Array.isArray(body.segments) || body.segments.length > MAX_SEGMENTS) {
+    return bad(`segments must be an array of at most ${MAX_SEGMENTS} items.`);
   }
+
+  const daypart = body.daypart;
+  if (typeof daypart !== "number" || !Number.isInteger(daypart) || daypart < 0 || daypart > 3) return bad("daypart must be an integer 0-3.");
+  const slowIn = body.slow === undefined ? [] : body.slow;
+  if (!Array.isArray(slowIn) || slowIn.length > MAX_SEGMENTS) return bad(`slow must be an array of at most ${MAX_SEGMENTS} items.`);
+
+  if (body.segments.length === 0 && (!Array.isArray(slowIn) || slowIn.length === 0)) return bad("Nothing to upload: no segments.");
 
   const rows: { cellLat: number; cellLon: number; rri: number; speedKph: number; samples: number }[] = [];
   for (let i = 0; i < body.segments.length; i++) {
@@ -56,13 +65,30 @@ export async function POST(req: Request) {
     rows.push({ cellLat, cellLon, rri, speedKph, samples });
   }
 
+  const slow: { cellLat: number; cellLon: number; speedKph: number }[] = [];
+  for (let i = 0; i < slowIn.length; i++) {
+    const s = slowIn[i] as Record<string, unknown> | null;
+    const lat = s?.lat;
+    const lon = s?.lon;
+    const speedKph = s?.speedKph;
+    if (
+      typeof lat !== "number" || !Number.isFinite(lat) || lat < -90 || lat > 90 ||
+      typeof lon !== "number" || !Number.isFinite(lon) || lon < -180 || lon > 180 ||
+      typeof speedKph !== "number" || !Number.isFinite(speedKph) || speedKph < 1 || speedKph > 12
+    ) {
+      return bad(`Slow segment ${i} is invalid.`);
+    }
+    const { cellLat, cellLon } = cellOf(lat, lon);
+    slow.push({ cellLat, cellLon, speedKph });
+  }
+
   const day = new Date().toISOString().slice(0, 10); // server-side UTC day, never client time
   try {
     const store = await getStore();
-    const outcome = await store.insertTrip({ tripId, day, deviceClass, rateHz, rows });
+    const outcome = await store.insertTrip({ tripId, day, deviceClass, rateHz, rows, daypart, slow });
     if (outcome === "duplicate") return bad("This trip was already uploaded.", 409);
   } catch (err) {
     return bad(err instanceof Error ? err.message : "Storage error.", 500);
   }
-  return Response.json({ ok: true, stored: rows.length });
+  return Response.json({ ok: true, stored: rows.length, slowStored: slow.length });
 }

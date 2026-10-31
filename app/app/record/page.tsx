@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_CONFIG, estimateNoiseFloor, estimateRateHz, segmentTrip, type SegmentationResult } from "@/lib/segmenter";
+import { daypartOfHour } from "@/lib/traffic";
 import { GpsCollector, MotionCollector, acquireWakeLock, deviceClass, probeMotion, requestMotionPermission } from "@/lib/sensors";
 
 type Phase = "idle" | "baseline" | "ready" | "recording" | "review" | "uploaded";
@@ -201,7 +202,7 @@ export default function RecordPage() {
   }
 
   async function upload() {
-    if (!result || !result.segments.length) return;
+    if (!result || (!result.segments.length && !result.slowSegments.length)) return;
     setBusy(true);
     setError(null);
     try {
@@ -212,6 +213,8 @@ export default function RecordPage() {
           tripId: tripId.current,
           deviceClass: deviceClass(),
           rateHz,
+          daypart: daypartOfHour(new Date(startedAt.current).getHours()), // local time of day, 4 bands only
+          slow: result.slowSegments.map((s) => ({ lat: +s.lat.toFixed(5), lon: +s.lon.toFixed(5), speedKph: +(s.speedMps * 3.6).toFixed(1) })),
           segments: result.segments.map((s) => ({
             lat: +s.lat.toFixed(5),
             lon: +s.lon.toFixed(5),
@@ -221,9 +224,9 @@ export default function RecordPage() {
           })),
         }),
       });
-      const json = (await res.json()) as { ok?: boolean; stored?: number; error?: string };
+      const json = (await res.json()) as { ok?: boolean; stored?: number; slowStored?: number; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error ?? `Upload failed (${res.status})`);
-      setUploaded(json.stored ?? result.segments.length);
+      setUploaded((json.stored ?? result.segments.length) + (json.slowStored ?? 0));
       setPhase("uploaded");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -326,14 +329,14 @@ export default function RecordPage() {
             <div className="stat"><div className="k">GPS fixes used</div><div className="v">{result.stats.gpsFixesUsed}/{result.stats.gpsFixesIn}</div></div>
           </div>
           {result.stats.note && <div className="warn">{result.stats.note}</div>}
-          {result.stats.segmentsKept > 0 && (
+          {(result.stats.segmentsKept > 0 || result.slowSegments.length > 0) && (
             <p className="small muted">
               Dropped: {result.stats.droppedLowSpeed} too slow, {result.stats.droppedHighSpeed} too fast, {result.stats.droppedCoverage} incomplete.
-              Only {result.stats.segmentsKept} segment summaries will be uploaded: location rounded to ~22 m, no timestamps, no raw sensor data, no identity.
+              Only {result.stats.segmentsKept} roughness summaries and {result.slowSegments.length} slow-traffic speed readings will be uploaded: location rounded to ~22 m, time of day as one of four bands (no timestamps), no raw sensor data, no identity.
             </p>
           )}
           <div className="row">
-            <button onClick={upload} disabled={busy || result.segments.length === 0}>{busy ? "Uploading…" : "Upload segments"}</button>
+            <button onClick={upload} disabled={busy || (result.segments.length === 0 && result.slowSegments.length === 0)}>{busy ? "Uploading…" : "Upload segments"}</button>
             <button className="danger" onClick={discard} disabled={busy}>Discard</button>
           </div>
         </div>

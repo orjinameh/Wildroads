@@ -9,6 +9,9 @@ You receive aggregated, crowd-sourced phone-vibration data for road cells of abo
 "rri" is a RELATIVE roughness index (higher = rougher). It is not an engineering standard such as IRI.
 "trips" is how many independent trips measured that cell. "spread" is the standard deviation of the per-trip values (null when only one trip).
 Each cell is [id, lat, lon, rri, trips, spread].
+"traffic" lists cells with speed observed by our own users: [id, lat, lon, [[daypart, trips, mean_speed_kph], ...]].
+daypart 0=night 22-05h, 1=morning 05-11h, 2=midday 11-16h, 3=evening 16-22h (local time). A speed under 15 km/h counts as "slow".
+This is NOT a full traffic feed: it only covers roads our users drove, so it says nothing about roads without readings.
 
 RULES
 - Use ONLY the data provided. Never invent street names, places, causes or repair costs: you only have coordinates.
@@ -18,8 +21,10 @@ RULES
 OUTPUT (compact JSON only, no markdown):
 {"overall":{"cells":n,"trips":n,"median_rri":x,"p90_rri":x,"confirmed_cells":n},
  "clusters":[{"lat":x,"lon":x,"cells":n,"mean_rri":x,"min_trips":n,"max_trips":n,"confirmed":true|false}],
+ "traffic":{"cells":n,"slow_cells_by_daypart":{"0":n,"1":n,"2":n,"3":n},"median_speed_by_daypart":{"0":x,"1":x,"2":x,"3":x},
+   "slow_clusters":[{"lat":x,"lon":x,"cells":n,"mean_kph":x,"daypart":d,"min_trips":n}]},
  "limits":["..."]}
-Return at most 8 clusters, roughest first.`;
+Use null where a daypart has no readings. Return at most 8 roughness clusters (roughest first) and at most 5 slow clusters (slowest first).`;
 
 const WRITER_PROMPT = `You are the WRITER in a two-step road-report pipeline. You receive the analyst's computed findings as JSON. You have no other data and no tools.
 Write a short road-condition report for a community group or road agency, in plain language.
@@ -33,7 +38,8 @@ RULES
 OUTPUT
 1. Summary (3 sentences maximum)
 2. Top hotspot clusters (list: centre lat/lon, number of cells, mean roughness, trips)
-3. What this data cannot tell you`;
+3. Traffic (only if the findings contain speed readings; say which parts of the day have data and which have none)
+4. What this data cannot tell you (always say traffic covers only roads our users drove, and that one trip cannot separate congestion from a red light or parked car)`;
 
 function cleanLabel(v: string | null): string {
   const s = (v ?? "").replace(/[^A-Za-z0-9 _.-]/g, "").trim().slice(0, 40);
@@ -92,7 +98,7 @@ export async function POST(req: Request) {
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : "Could not read road data." }, { status: 500 });
   }
-  const { cells, totalSegments, totalTrips } = loaded;
+  const { cells, traffic, totalSegments, totalTrips } = loaded;
   if (cells.length === 0) {
     return Response.json({ error: "No road data has been uploaded yet. Record a trip first." }, { status: 409 });
   }
@@ -104,6 +110,10 @@ export async function POST(req: Request) {
     totalSegments,
     totalTrips,
     focus: focus || null,
+    traffic: [...traffic]
+      .sort((a, b) => Math.min(...a.bands.map((x) => x.speedKph)) - Math.min(...b.bands.map((x) => x.speedKph)))
+      .slice(0, 300)
+      .map((t) => [t.id, +t.lat.toFixed(5), +t.lon.toFixed(5), t.bands.map((b) => [b.daypart, b.n, +b.speedKph.toFixed(1)])]),
     cells: top.map((c) => [c.id, +c.lat.toFixed(5), +c.lon.toFixed(5), +c.rri.toFixed(3), c.trips, c.spread === null ? null : +c.spread.toFixed(3)]),
   };
 

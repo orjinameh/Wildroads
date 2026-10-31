@@ -3,10 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { DAYPARTS, DAYPART_HOURS, SLOW_KPH } from "@/lib/traffic";
 import type { ExpressionSpecification, GeoJSONSource, Map as MlMap, StyleSpecification } from "maplibre-gl";
 
 type Cell = { id: string; lat: number; lon: number; rri: number; trips: number; spread: number | null; speedKph: number };
-type CellsResponse = { cells: Cell[]; totalSegments: number; totalTrips: number };
+type TrafficBand = { daypart: number; n: number; speedKph: number };
+type TrafficCell = { id: string; lat: number; lon: number; bands: TrafficBand[] };
+type CellsResponse = { cells: Cell[]; traffic: TrafficCell[]; totalSegments: number; totalTrips: number };
+type Item = { id: string; lat: number; lon: number; v: number }; // v: value that drives the colour (higher = worse)
+type Mode = "roughness" | "traffic";
 type Scale = { s0: number; s1: number; s2: number; flat: boolean };
 
 const DEFAULT_CENTER: [number, number] = [3.3792, 6.5244];
@@ -49,9 +54,20 @@ function colorFor(v: number, sc: Scale, ramp: string[], flat: string): string {
   return v <= sc.s1 ? mixHex(ramp[0], ramp[1], (v - sc.s0) / (sc.s1 - sc.s0)) : mixHex(ramp[1], ramp[2], (v - sc.s1) / (sc.s2 - sc.s1));
 }
 
+// Traffic colours use a fixed scale on "slowness" = 60 - speed, so a colour always means the same speed.
+const TRAFFIC_SCALE: Scale = { s0: 0, s1: 30, s2: 60 - SLOW_KPH, flat: false };
+const slowness = (kph: number) => 60 - Math.min(60, Math.max(0, kph));
+
+function trafficIn(c: TrafficCell, part: number): { n: number; speedKph: number } | null {
+  const bands = part < 0 ? c.bands : c.bands.filter((b) => b.daypart === part);
+  const n = bands.reduce((a, b) => a + b.n, 0);
+  if (!n) return null;
+  return { n, speedKph: bands.reduce((a, b) => a + b.speedKph * b.n, 0) / n };
+}
+
 const radius = (extra: number): ExpressionSpecification => ["interpolate", ["exponential", 2], ["zoom"], 10, 1.2 + extra, 18, 16 + extra];
 
-function applyData(map: MlMap, cells: Cell[], sc: Scale, ramp: string[], flat: string, halo: string, selected: string | null) {
+function applyData(map: MlMap, cells: Item[], sc: Scale, ramp: string[], flat: string, halo: string, selected: string | null) {
   for (const id of ["cells-sel", "cells"]) if (map.getLayer(id)) map.removeLayer(id);
   if (map.getSource("cells")) map.removeSource("cells");
   if (!cells.length) return;
@@ -63,13 +79,13 @@ function applyData(map: MlMap, cells: Cell[], sc: Scale, ramp: string[], flat: s
       features: cells.map((c) => ({
         type: "Feature",
         geometry: { type: "Point", coordinates: [c.lon, c.lat] },
-        properties: { cid: c.id, rri: c.rri },
+        properties: { cid: c.id, v: c.v },
       })),
     },
   });
   const color: string | ExpressionSpecification = sc.flat
     ? flat
-    : ["interpolate", ["linear"], ["get", "rri"], sc.s0, ramp[0], sc.s1, ramp[1], sc.s2, ramp[2]];
+    : ["interpolate", ["linear"], ["get", "v"], sc.s0, ramp[0], sc.s1, ramp[1], sc.s2, ramp[2]];
   map.addLayer({
     id: "cells",
     type: "circle",
@@ -95,6 +111,8 @@ export default function MapPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<Mode>("roughness");
+  const [part, setPart] = useState(-1); // -1 = any time of day
   const [styleVersion, setStyleVersion] = useState(0);
   const [palette, setPalette] = useState({ ramp: ["#3b82c4", "#f28f3b", "#b3123f"], flat: "#8a96a3", halo: "#13202b" });
 
@@ -169,23 +187,39 @@ export default function MapPage() {
     };
   }, []);
 
-  const scale = useMemo(() => makeScale(data?.cells ?? []), [data]);
+  const roughScale = useMemo(() => makeScale(data?.cells ?? []), [data]);
+  const scale = mode === "traffic" ? TRAFFIC_SCALE : roughScale;
+  const trafficCells = useMemo(() => {
+    const out: { c: TrafficCell; n: number; speedKph: number }[] = [];
+    for (const c of data?.traffic ?? []) {
+      const t = trafficIn(c, part);
+      if (t) out.push({ c, ...t });
+    }
+    return out;
+  }, [data, part]);
+  const items: Item[] = useMemo(
+    () =>
+      mode === "traffic"
+        ? trafficCells.map((t) => ({ id: t.c.id, lat: t.c.lat, lon: t.c.lon, v: slowness(t.speedKph) }))
+        : (data?.cells ?? []).map((c) => ({ id: c.id, lat: c.lat, lon: c.lon, v: c.rri })),
+    [mode, trafficCells, data],
+  );
 
   // Draw data whenever it, the palette or the basemap style changes.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !data || styleVersion === 0) return;
-    applyData(map, data.cells, scale, palette.ramp, palette.flat, palette.halo, selectedRef.current);
-    if (!fitted.current && data.cells.length) {
+    applyData(map, items, scale, palette.ramp, palette.flat, palette.halo, selectedRef.current);
+    if (!fitted.current && items.length) {
       fitted.current = true;
       let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
-      for (const c of data.cells) {
+      for (const c of items) {
         minLon = Math.min(minLon, c.lon); maxLon = Math.max(maxLon, c.lon);
         minLat = Math.min(minLat, c.lat); maxLat = Math.max(maxLat, c.lat);
       }
       map.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: { top: 60, left: 60, right: 60, bottom: 220 }, maxZoom: 17, duration: 0 });
     }
-  }, [data, scale, palette, styleVersion]);
+  }, [data, items, scale, palette, styleVersion]);
 
   useEffect(() => {
     selectedRef.current = selected;
@@ -197,8 +231,11 @@ export default function MapPage() {
   const confirmed = cells.filter((c) => c.trips >= 2).length;
   const sel = useMemo(() => cells.find((c) => c.id === selected) ?? null, [cells, selected]);
   const roughest = useMemo(() => [...cells].sort((a, b) => b.rri - a.rri).slice(0, 5), [cells]);
+  const selTraffic = useMemo(() => trafficCells.find((t) => t.c.id === selected) ?? null, [trafficCells, selected]);
+  const slowest = useMemo(() => [...trafficCells].sort((a, b) => a.speedKph - b.speedKph).slice(0, 5), [trafficCells]);
+  const hasTraffic = (data?.traffic.length ?? 0) > 0;
 
-  function flyTo(c: Cell) {
+  function flyTo(c: { id: string; lat: number; lon: number }) {
     setSelected(c.id);
     mapRef.current?.flyTo({ center: [c.lon, c.lat], zoom: 17, duration: 800 });
   }
@@ -212,13 +249,13 @@ export default function MapPage() {
           <span />
         </button>
         <div className="panel-body">
-          <h1>Road roughness</h1>
-          <p className="sub">Measured by phones on real trips.</p>
+          <h1>{mode === "traffic" ? "Traffic" : "Road roughness"}</h1>
+          <p className="sub">{mode === "traffic" ? "Speeds measured by phones on real trips." : "Measured by phones on real trips."}</p>
 
           {error && <div className="error">Could not load the map data. {error}</div>}
           {!data && !error && <p className="sub">Loading…</p>}
 
-          {data && cells.length === 0 && (
+          {data && cells.length === 0 && !hasTraffic && (
             <div className="empty-state">
               <p><strong>No roads recorded yet</strong></p>
               <p>Mount a phone in a vehicle and drive a route. It appears here as soon as you upload it.</p>
@@ -226,8 +263,65 @@ export default function MapPage() {
             </div>
           )}
 
-          {data && cells.length > 0 && (
+          {data && (cells.length > 0 || hasTraffic) && (
             <>
+              <div className="seg" role="group" aria-label="Map layer">
+                <button className={mode === "roughness" ? "on" : ""} aria-pressed={mode === "roughness"} onClick={() => { setMode("roughness"); setSelected(null); }}>Roughness</button>
+                <button className={mode === "traffic" ? "on" : ""} aria-pressed={mode === "traffic"} onClick={() => { setMode("traffic"); setSelected(null); }}>Traffic</button>
+              </div>
+              {mode === "traffic" && (
+                <div className="seg small" role="group" aria-label="Time of day">
+                  <button className={part < 0 ? "on" : ""} aria-pressed={part < 0} onClick={() => setPart(-1)}>Any</button>
+                  {DAYPARTS.map((d, i) => (
+                    <button key={d} className={part === i ? "on" : ""} aria-pressed={part === i} title={DAYPART_HOURS[i]} onClick={() => setPart(i)}>{d}</button>
+                  ))}
+                </div>
+              )}
+              {mode === "traffic" ? (
+                <>
+                  {trafficCells.length === 0 ? (
+                    <div className="empty-state"><p>No speed readings for this time of day yet.</p></div>
+                  ) : (
+                    <>
+                      <div className="nums">
+                        <div className="num"><b>{trafficCells.length}</b><span>road cells</span></div>
+                        <div className="num"><b>{trafficCells.filter((t) => t.speedKph < SLOW_KPH).length}</b><span>slow (&lt;{SLOW_KPH} km/h)</span></div>
+                        <div className="num"><b>{trafficCells.filter((t) => t.n >= 2).length}</b><span>2+ trips</span></div>
+                      </div>
+                      <div className="ramp traffic" role="img" aria-label="Colour scale from fast to slow" />
+                      <div className="ramp-labels"><span>60 km/h +</span><span>{SLOW_KPH} km/h or less</span></div>
+                      <div className="more-wrap">
+                        <div className="more-inner">
+                          {selTraffic && (
+                            <div className="pick" aria-live="polite">
+                              <span className={`badge ${selTraffic.n >= 2 ? "confirmed" : "pending"}`}>{selTraffic.n >= 2 ? "2+ trips" : "One trip so far"}</span>
+                              <div className="big" style={{ color: colorFor(slowness(selTraffic.speedKph), TRAFFIC_SCALE, palette.ramp, palette.flat) }}>{selTraffic.speedKph.toFixed(0)} km/h</div>
+                              {selTraffic.c.bands.map((b) => (
+                                <p key={b.daypart}>{DAYPARTS[b.daypart]}: {b.speedKph.toFixed(0)} km/h on {b.n} {b.n === 1 ? "trip" : "trips"}</p>
+                              ))}
+                            </div>
+                          )}
+                          <div className="places">
+                            <h2>Slowest places</h2>
+                            {slowest.map((t) => (
+                              <button key={t.c.id} className="place" onClick={() => flyTo(t.c)}>
+                                <i style={{ background: colorFor(slowness(t.speedKph), TRAFFIC_SCALE, palette.ramp, palette.flat) }} />
+                                <span className="t">
+                                  <b>Near {t.c.lat.toFixed(4)}, {t.c.lon.toFixed(4)}</b>
+                                  <span>{t.n} {t.n === 1 ? "trip" : "trips"}</span>
+                                </span>
+                                <span className="v">{t.speedKph.toFixed(0)}</span>
+                              </button>
+                            ))}
+                          </div>
+                          <p className="fine">These are speeds our own users drove, not a full traffic feed. A slow reading from one trip can be a parked car or a red light; it becomes meaningful as more trips cover the same road and time of day.</p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+              <>
               <div className="nums">
                 <div className="num"><b>{cells.length}</b><span>road cells</span></div>
                 <div className="num"><b>{data.totalTrips}</b><span>{data.totalTrips === 1 ? "trip" : "trips"}</span></div>
@@ -245,6 +339,7 @@ export default function MapPage() {
                       <p>Roughness index, relative to this map</p>
                       <p>Measured on {sel.trips} {sel.trips === 1 ? "trip" : "trips"}{sel.spread !== null ? `, varying by about ±${sel.spread.toFixed(2)}` : ""}</p>
                       <p>Average speed {sel.speedKph.toFixed(0)} km/h</p>
+                      {sel.speedKph < SLOW_KPH + 5 && <p className="fine">Measured at low speed, so this reading is less reliable.</p>}
                     </div>
                   )}
 
@@ -264,6 +359,8 @@ export default function MapPage() {
                   <p className="fine">Colours compare roads in this data with each other. They are not an engineering grade. A cell is confirmed once two separate trips measured it.</p>
                 </div>
               </div>
+              </>
+              )}
             </>
           )}
         </div>

@@ -1,6 +1,6 @@
 import { cellCenter } from "./grid";
 import { getDb } from "./db";
-import type { Cell, CellsResult, NewTrip, Store } from "./types";
+import type { Cell, CellsResult, NewTrip, Store, TrafficCell } from "./types";
 
 export async function createSqliteStore(): Promise<Store> {
   return {
@@ -12,9 +12,14 @@ export async function createSqliteStore(): Promise<Store> {
         `INSERT INTO segments (trip_id, day, cell_lat, cell_lon, rri, speed_kph, samples, device_class, rate_hz)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
+      const insertSpeed = db.prepare(`INSERT INTO speeds (trip_id, cell_lat, cell_lon, daypart, speed_kph) VALUES (?, ?, ?, ?, ?)`);
       db.exec("BEGIN");
       try {
-        for (const r of t.rows) insert.run(t.tripId, t.day, r.cellLat, r.cellLon, r.rri, r.speedKph, r.samples, t.deviceClass, t.rateHz);
+        for (const r of t.rows) {
+          insert.run(t.tripId, t.day, r.cellLat, r.cellLon, r.rri, r.speedKph, r.samples, t.deviceClass, t.rateHz);
+          insertSpeed.run(t.tripId, r.cellLat, r.cellLon, t.daypart, r.speedKph);
+        }
+        for (const r of t.slow) insertSpeed.run(t.tripId, r.cellLat, r.cellLon, t.daypart, r.speedKph);
         db.exec("COMMIT");
       } catch (err) {
         db.exec("ROLLBACK");
@@ -54,7 +59,32 @@ export async function createSqliteStore(): Promise<Store> {
         segs: number;
         trips: number;
       };
-      return { cells, totalSegments: totals.segs, totalTrips: totals.trips };
+
+      // Traffic: mean speed per trip, then across trips, per cell and part of the day.
+      const sp = db
+        .prepare(
+          `SELECT cell_lat AS cl, cell_lon AS co, daypart AS dp, AVG(speed_kph) AS speed
+           FROM speeds GROUP BY cell_lat, cell_lon, daypart, trip_id`,
+        )
+        .all() as { cl: number; co: number; dp: number; speed: number }[];
+      const byTraffic = new Map<string, { cl: number; co: number; per: Map<number, number[]> }>();
+      for (const r of sp) {
+        const key = `${r.cl}:${r.co}`;
+        const e = byTraffic.get(key) ?? { cl: r.cl, co: r.co, per: new Map<number, number[]>() };
+        const arr = e.per.get(r.dp) ?? [];
+        arr.push(r.speed);
+        e.per.set(r.dp, arr);
+        byTraffic.set(key, e);
+      }
+      const traffic: TrafficCell[] = [];
+      for (const [key, e] of byTraffic) {
+        const c = cellCenter(e.cl, e.co);
+        const bands = [...e.per.entries()]
+          .sort((a, b) => a[0] - b[0])
+          .map(([daypart, arr]) => ({ daypart, n: arr.length, speedKph: arr.reduce((s, x) => s + x, 0) / arr.length }));
+        traffic.push({ id: key, lat: c.lat, lon: c.lon, bands });
+      }
+      return { cells, traffic, totalSegments: totals.segs, totalTrips: totals.trips };
     },
   };
 }

@@ -17,7 +17,7 @@ RULES
 - Use ONLY the data provided. Never invent street names, places, causes or repair costs: you only have coordinates.
 - Use the code execution tool to compute every number (counts, percentiles, ranking, clusters of cells within about 60 m of each other). Do not estimate by eye.
 - A finding that rests on cells with trips < 2 is UNCONFIRMED.
-- If "area" is not null, use the web search tool to find which public agency is responsible for roads in that area and where it accepts reports. Only report a name and URL that appear in the search results; if you are not sure, use null. Never guess a phone number or email.
+- If "area" is not null, use the web search tool to find which public agency is responsible for roads in that area and where it accepts reports. Only report a name and URL that appear in the search results. Prefer the agency's own official website (for example a .gov.ng domain); never use a social media post as the URL, and if only unofficial pages are found give the agency name with url null. If the area has both a state and a federal road agency, name the one for state and local roads. If you are not sure, use null. Never guess a phone number or email.
 
 OUTPUT (compact JSON only, no markdown):
 {"overall":{"cells":n,"trips":n,"median_rri":x,"p90_rri":x,"confirmed_cells":n},

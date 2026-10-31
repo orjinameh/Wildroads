@@ -4,6 +4,9 @@ A community-run road-roughness map built from phone sensors, with AI reports gov
 [Otari](https://github.com/mozilla-ai/otari) (Mozilla.ai's open-source LLM gateway).
 Built for Mozilla's Developers Wilding hackathon.
 
+> Drivers shouldn't touch their phones. Wildroads lets the phone feel the road for them, and the
+> community's own AI gateway turns what it feels into reports a road agency can act on.
+
 Prior art: MIT's Pothole Patrol and Boston's Street Bump measured roads with phones. What this adds is
 a community-owned stack: on-device processing for privacy, repeat-trip confirmation, and AI reports
 whose spend is capped and attributed per member by Otari.
@@ -53,6 +56,26 @@ set the port back to Private afterwards. iPhone asks for Motion & Orientation pe
 
 `cd app && npm test` runs the signal-processing tests (known-amplitude sine waves through the filter
 and segmenter). They are maths checks; the app itself never generates or simulates signals.
+
+## Next (not built yet)
+
+1. Calibrate against a reference road survey in a pilot, so the index means the same thing across phones.
+2. Offer aggregated, consented road-condition data to road agencies and fleets.
+3. Reward verified contributions (cells confirmed by independent trips) from grant or data revenue, with
+   the community setting the budget through Otari.
+
+## Testing without a vehicle
+
+Most of the stack can be checked before you have a trip:
+
+- `cd app && npm test` runs the signal-processing tests.
+- `bash scripts/otari-smoke.sh` checks the gateway: chat call, code-execution tool, per-member tags and
+  the usage ledger. It needs no road data. Use a key with a tiny budget to see Otari refuse a request.
+- On a phone, open `/record`, enable sensors and run the 12 s baseline. It reads the real accelerometer
+  and needs no GPS lock, so it works indoors and shows the sensor rate and noise floor.
+- A real trip needs movement of at least ~9 km/h (segments below 2.5 m/s are discarded). A bicycle,
+  motorbike, tricycle, bus or car works; walking does not. Record the same route at least 3 times so cells
+  can be confirmed by repeat passes.
 
 ## Status and known limits
 

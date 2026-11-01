@@ -37,16 +37,6 @@ const items: { href: string; label: string; icon: ReactNode }[] = [
       </svg>
     ),
   },
-  {
-    href: "/ledger",
-    label: "Ledger",
-    icon: (
-      <svg viewBox="0 0 24 24" {...stroke} aria-hidden="true">
-        <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" />
-        <path d="M9 8h6M9 12h6" />
-      </svg>
-    ),
-  },
 ];
 
 export function BrandMark({ size = 34 }: { size?: number }) {

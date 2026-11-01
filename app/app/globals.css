@@ -165,7 +165,7 @@ a { color: inherit; }
   .maplibregl-ctrl-attrib a { color: var(--muted) !important; }
 }
 
-/* ---------- content pages (record, report, ledger) ---------- */
+/* ---------- content pages (record, report) ---------- */
 .content { max-width: 720px; margin: 0 auto; padding: 28px 16px 40px; }
 .content h1 { font-size: 30px; line-height: 1.12; letter-spacing: -0.025em; font-weight: 650; margin: 0 0 6px; }
 .content h2 { font-size: 18px; letter-spacing: -0.01em; font-weight: 650; margin: 0 0 8px; }

@@ -23,9 +23,8 @@ whose spend is capped and attributed per member by Otari.
    Segments too slow for roughness (crawling traffic, 2-9 km/h) are kept as speed readings only, which powers the Traffic layer.
 3. **Map:** cells are coloured relative to the data on screen. A cell measured on 2+ independent trips is "confirmed".
 4. **Report:** the server sends aggregated cells to a model through Otari with the `otari_code_execution`
-   tool so statistics are computed in a sandbox, not guessed. The member's own Otari virtual key is used,
-   so Otari enforces that key's budget and model access.
-5. **Ledger:** reads Otari's usage summary grouped by the `member` tag. Nothing is computed by the app.
+   tool so statistics are computed in a sandbox, not guessed. Each community group has its own Otari key
+   (kept on the server), so Otari enforces that group's budget and model access.
 
 RRI is **relative**. It is not IRI and is not calibrated across phones or vehicles. Use one reference
 phone and mount for comparisons, and judge quality by repeat-pass agreement (the map's trips/spread).
@@ -46,7 +45,7 @@ docker compose up -d --build
 ```
 
 Without Docker, for the app only: `cd app && npm install && npm run dev`
-(set `OTARI_BASE_URL`, `OTARI_MODEL`, `OTARI_MASTER_KEY` in your shell for report/ledger).
+(set `OTARI_BASE_URL`, `OTARI_MODEL`, `OTARI_MASTER_KEY` in your shell for the report).
 
 ### Testing on a phone
 
@@ -71,7 +70,7 @@ serverless function. For the hackathon use the hosted platform at otari.ai; to s
    `otk_...` key, and pick models in the **Models** tab. Self-hosting instead is documented in Otari's Deployment docs.
 3. **Vercel:** import the repository and set **Root Directory** to `app`. Add these environment variables:
    `MONGODB_URI`, `OTARI_BASE_URL` (`https://eu.api.otari.ai/api/v1` for the hosted platform), `OTARI_MODEL` (analyst), `OTARI_WRITER_MODEL` (writer), `OTARI_KEYS` (JSON map of community group name to its own `otk_` key, each key with its own budget; never sent to the browser), and optionally
-   `MONGODB_DB`. `OTARI_MASTER_KEY` is only for a self-hosted gateway (the Ledger page).
+   `MONGODB_DB`.
 4. Open the Vercel URL on your phone. It is HTTPS, so motion sensors and GPS work.
 
 Notes: the report route asks for up to 60 s, and your Vercel plan may cap function duration lower, so check
@@ -90,8 +89,7 @@ is limited (check the current limit).
 Most of the stack can be checked before you have a trip:
 
 - `cd app && npm test` runs the signal-processing tests.
-- `bash scripts/otari-smoke.sh` checks the gateway: chat call, code-execution tool, per-member tags and
-  the usage ledger. It needs no road data. Use a key with a tiny budget to see Otari refuse a request.
+- `bash scripts/otari-smoke.sh` checks the gateway: chat call, code-execution tool, per-member tags. It needs no road data. Use a key with a tiny budget to see Otari refuse a request.
 - On a phone, open `/record`, enable sensors and run the 12 s baseline. It reads the real accelerometer
   and needs no GPS lock, so it works indoors and shows the sensor rate and noise floor.
 - A real trip needs movement of at least ~9 km/h (segments below 2.5 m/s are discarded). A bicycle,

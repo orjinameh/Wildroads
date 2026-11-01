@@ -63,7 +63,7 @@ export async function GET() {
 }
 
 // Hosted platform: OTARI_BASE_URL = https://eu.api.otari.ai/api/v1  -> {base}/chat/completions
-// Self-hosted gateway: OTARI_BASE_URL = https://your-host     -> {base}/api/v1/chat/completions
+// A bare host (no path): OTARI_BASE_URL = https://eu.api.otari.ai -> {base}/api/v1/chat/completions
 function chatUrl(base: string): string {
   const b = base.replace(/\/+$/, "");
   return /\/v1$/.test(b) ? `${b}/chat/completions` : `${b}/api/v1/chat/completions`;
@@ -96,7 +96,7 @@ type Stage = { content: string; model: string; fellBack: boolean } | { error: st
 export async function POST(req: Request) {
   const base = process.env.OTARI_BASE_URL;
   const analystModel = process.env.OTARI_MODEL;
-  const writerModel = process.env.OTARI_WRITER_MODEL || process.env.OTARI_FALLBACK_MODEL;
+  const writerModel = process.env.OTARI_WRITER_MODEL;
   if (!base || !analystModel || !writerModel) {
     return Response.json({ error: "OTARI_BASE_URL, OTARI_MODEL (analyst) and OTARI_WRITER_MODEL must be set on the server (model ids exactly as shown in the Otari Models tab)." }, { status: 503 });
   }

@@ -4,7 +4,7 @@ let cached: Promise<Store> | null = null;
 
 /**
  * MONGODB_URI set  -> MongoDB Atlas (use this on Vercel: serverless disks are not persistent)
- * otherwise        -> SQLite file in DATA_DIR (self-hosted Docker Compose stack)
+ * otherwise        -> SQLite file in DATA_DIR (local development)
  */
 export function getStore(): Promise<Store> {
   if (!cached) {

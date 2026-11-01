@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type LedgerResponse = { upstreamStatus?: number; data?: unknown; error?: string };
+type LedgerResponse = { upstreamStatus?: number; data?: unknown; error?: string; hosted?: boolean };
 
 export default function LedgerPage() {
   const [out, setOut] = useState<LedgerResponse | null>(null);
@@ -28,12 +28,21 @@ export default function LedgerPage() {
   return (
     <div className="content">
       <h1>Usage ledger</h1>
-      <p className="lead">AI spend per member, read directly from the community’s Otari gateway. Nothing on this page is computed or estimated by this app.</p>
+      <p className="lead">AI spend per community group. Nothing on this page is computed or estimated by this app.</p>
 
       {loading && <p className="muted">Loading…</p>}
       {out?.error && <div className="error">{out.error}</div>}
 
-      {out && !out.error && (
+      {out?.hosted && (
+        <div className="card">
+          <p>Spend for each community group is enforced and shown by Otari itself, so this app does not repeat it.</p>
+          <p className="small muted">
+            Open the <a href="https://otari.ai/dashboard/" target="_blank" rel="noreferrer">Otari dashboard</a>: <b>Spend &amp; budgets</b> shows each group&rsquo;s limit and what it has spent, and the <b>Usage</b> tab shows which model served each request.
+          </p>
+        </div>
+      )}
+
+      {out && !out.error && !out.hosted && (
         <div className="card">
           <p className="small muted">Otari responded with status {out.upstreamStatus}.</p>
           {byTag && typeof byTag === "object" && !Array.isArray(byTag) ? (

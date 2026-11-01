@@ -47,7 +47,7 @@ Wildroads maps road roughness and speeds from phone sensors, with AI road report
 - Showing which model actually served a request when a routing policy is used.
 - Mapping a community group to its own key and budget (done with a server-side key map, `OTARI_KEYS`).
 - A clear "budget used up" message for end users (the gateway returns an API error; I turned it into a readable notice).
-- Spend per group in my own UI: I could not find a usage API for the hosted platform in the docs, so I link to the Usage tab instead.
+- Spend per group in my own UI: the hosted usage endpoints (`/api/v1/usage`, `/usage/summary?group_by_tag=member`) answer `Invalid master key` to a normal API key, so my app cannot show spend. I link to the dashboard instead. A read-only usage endpoint for a key's own spend would let apps show budgets to their users.
 
 **3. If the rules hadn't required Otari, would you have continued using Otari? Why or why not?**
 **TODO:** your honest answer. Points you can draw on: server-side budgets per key and per member, routing with fallback in one place, built-in code execution and web search. Counterpoints: the setup steps (region host, model access, tool enablement, guardrail vendor keys).

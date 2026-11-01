@@ -6,7 +6,20 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const base = process.env.OTARI_BASE_URL;
   const master = process.env.OTARI_MASTER_KEY;
-  if (!base || !master) {
+  if (!base) {
+    return Response.json({ error: "OTARI_BASE_URL must be set on the server." }, { status: 503 });
+  }
+  let hosted = false;
+  try {
+    hosted = new URL(base).hostname.endsWith("otari.ai");
+  } catch {
+    /* not a URL: treated as self-hosted below */
+  }
+  if (hosted) {
+    // The hosted usage endpoints answer "Invalid master key" to a normal API key, so the app cannot read spend itself.
+    return Response.json({ hosted: true });
+  }
+  if (!master) {
     return Response.json({ error: "OTARI_BASE_URL and OTARI_MASTER_KEY must be set on the server." }, { status: 503 });
   }
   try {

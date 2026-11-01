@@ -88,8 +88,21 @@ export default function ReportPage() {
         </div>
       </div>
 
-      {out?.budget && <div className="warn"><strong>Budget limit reached.</strong> Otari refused this request because this community group's budget is used up. Ask the group admin to raise it, or pick a group with room left.</div>}
-      {out?.error && <div className="error">{out.stage ? `Failed at the ${out.stage} step. ` : ""}{out.error}</div>}
+      {out?.budget && (
+        <div className="warn">
+          <strong>This community group has used up its AI budget.</strong> Reports are paused until the budget resets or the group admin raises it. You can pick another group from the list.
+        </div>
+      )}
+      {out?.error && !out.budget && !out.stage && <div className="error">{out.error}</div>}
+      {out?.error && !out.budget && out.stage && (
+        <div className="error">The report could not be generated right now. Please try again in a minute.</div>
+      )}
+      {out?.error && out.stage && (
+        <details>
+          <summary className="small muted">Technical details</summary>
+          <pre className="report">{out.stage ? `Step: ${out.stage}\n` : ""}{out.error}</pre>
+        </details>
+      )}
       {out?.error && out.analysis && (
         <details>
           <summary className="small muted">Analyst findings (completed before the failure)</summary>

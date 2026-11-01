@@ -30,6 +30,7 @@ Wildroads maps road roughness and speeds from phone sensors, with AI road report
 7. **Budgets.** Budgets are shared objects: editing one moves everyone held to it, and a per-member ceiling lives on a different page (Members & roles) from the key budgets (Spend & budgets). It took several screens to understand. Once understood, it worked well.
 8. **Login.** Signing in to the hosted dashboard in a private window said `wrong email or password`; the same credentials worked in a normal window. Reproduced by typing the password by hand, in three browsers (including Safari), with two different accounts (the owner and an invited member). Reported as mozilla-ai/otari#2742.
 9. **Routing responses.** A request sent to a routing policy returns the policy name as the model, so the app cannot show which model really answered. The Usage tab shows it.
+10. **Budget refusal.** A key with a $0.02 daily budget was refused with HTTP 403 and `{"code":"budget_exceeded"}`, and the message explained why: `API key has $0.001135 of budget remaining, less than this request's estimated cost of $0.001804. The estimate assumes 3 000 output tokens; a lower output token limit on the request may let it fit`. The message was excellent. It was surprising that the refusal is a 403 rather than 402 or 429, and that it is based on an estimate from `max_tokens`, so apps need to set `max_tokens` to make small budgets predictable.
 
 ## What worked well  **TODO: edit to match your experience**
 

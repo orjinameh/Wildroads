@@ -77,6 +77,9 @@ async function callOtari(base: string, key: string, model: string, member: strin
       { role: "user", content: userContent },
     ],
     metadata: { app: "wildroads", member, role }, // tags: usage can be grouped by member and by role
+    // Otari refuses a request when the key's remaining budget is below the cost it estimates from max_tokens,
+    // so keep the limit explicit and modest.
+    max_tokens: role === "analyst" ? 3000 : 1500,
   };
   // Only the analyst gets tools: code execution always, web search when an area was given.
   if (role === "analyst") body.tools = webSearch ? [{ type: "otari_code_execution" }, { type: "otari_web_search" }] : [{ type: "otari_code_execution" }];
@@ -88,7 +91,7 @@ async function callOtari(base: string, key: string, model: string, member: strin
   });
 }
 
-type Stage = { content: string; model: string; fellBack: boolean } | { error: string; status: number };
+type Stage = { content: string; model: string; fellBack: boolean } | { error: string; status: number; budget?: boolean };
 
 export async function POST(req: Request) {
   const base = process.env.OTARI_BASE_URL;
@@ -175,7 +178,9 @@ export async function POST(req: Request) {
     if (!r.ok) {
       // Budget and key errors come straight from Otari; show them as they are.
       const pass = r.status === 401 || r.status === 402 || r.status === 403 || r.status === 429;
-      return { error: `Otari returned ${r.status} (${role}): ${raw.slice(0, 500)}`, status: pass ? r.status : 502 };
+      // Otari answers an exhausted budget with HTTP 403 and "code":"budget_exceeded".
+      const budget = r.status === 402 || r.status === 429 || /budget_exceeded/.test(raw);
+      return { error: `Otari returned ${r.status} (${role}): ${raw.slice(0, 500)}`, status: pass ? r.status : 502, budget };
     }
     let content: string | null = null;
     try {
@@ -190,10 +195,10 @@ export async function POST(req: Request) {
   };
 
   const analysis = await runStage("analyst", ANALYST_PROMPT, JSON.stringify(payload), analystModel, writerModel, Boolean(area));
-  if ("error" in analysis) return Response.json({ error: analysis.error, stage: "analyst", budget: analysis.status === 402 || analysis.status === 429 }, { status: analysis.status });
+  if ("error" in analysis) return Response.json({ error: analysis.error, stage: "analyst", budget: Boolean(analysis.budget) }, { status: analysis.status });
 
   const writing = await runStage("writer", WRITER_PROMPT, analysis.content, writerModel, analystModel);
-  if ("error" in writing) return Response.json({ error: writing.error, stage: "writer", budget: writing.status === 402 || writing.status === 429, analysis: analysis.content, analystModel: analysis.model }, { status: writing.status });
+  if ("error" in writing) return Response.json({ error: writing.error, stage: "writer", budget: Boolean(writing.budget), analysis: analysis.content, analystModel: analysis.model }, { status: writing.status });
 
   return Response.json({
     report: writing.content,

@@ -61,7 +61,7 @@ TODO: link. Script:
 6. **Fallback (30 s).** Only if you can show a real failure; say honestly if you configured a failing primary model on purpose.
 7. **Close (15 s).** What is next: more trips, calibrated reference phones, agency partnerships.
 
-Rules for the video: show real data only; keep it in a normal browser window (private windows fail to sign in, see issue #2742).
+Rule for the video: show real data only.
 
 ## 7. Feedback
 

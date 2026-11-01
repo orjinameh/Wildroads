@@ -7,7 +7,7 @@ Wildroads maps road roughness and speeds from phone sensors, with AI road report
 ## Issues opened on the Otari repo
 
 - https://github.com/mozilla-ai/otari/issues/2741 (hosted quickstart base URL does not match the API)
-- https://github.com/mozilla-ai/otari/issues/2742 (sign-in fails in private windows)
+- https://github.com/mozilla-ai/otari/issues/2742 (sign-in fails in private windows; cause was the region selector, see friction log item 8)
 
 ## What we built with Otari
 
@@ -28,7 +28,7 @@ Wildroads maps road roughness and speeds from phone sensors, with AI road report
 5. **Web search.** The first call returned `web search is not enabled for this workspace`. The message was clear; it had to be turned on in the dashboard. **TODO:** where.
 6. **Guardrails.** They need a third-party vendor's key, so I did not use them. A built-in check would have made this feature easy to adopt.
 7. **Budgets.** Budgets are shared objects: editing one moves everyone held to it, and a per-member ceiling lives on a different page (Members & roles) from the key budgets (Spend & budgets). It took several screens to understand. Once understood, it worked well.
-8. **Login.** Signing in to the hosted dashboard in a private window said `wrong email or password`; the same credentials worked in a normal window. Reproduced by typing the password by hand, in three browsers (including Safari), with two different accounts (the owner and an invited member). Reported as mozilla-ai/otari#2742.
+8. **Login and region.** Signing in to the hosted dashboard in a private window said `wrong email or password` with the correct credentials, in three browsers, for two accounts. The cause was the region selector: a private window forgets it and defaults to the US region, while my account lives in the EU region, so the account was simply not found there. Changing the region to EU fixed it. The error message gave no hint about regions. Suggestion: when the email is not found in the selected region, say so ("no account in the US region, try EU"), or remember the region. I reported it first as a bug (mozilla-ai/otari#2742) and then added the explanation.
 9. **Routing responses.** A request sent to a routing policy returns the policy name as the model, so the app cannot show which model really answered. The Usage tab shows it.
 10. **Budget refusal.** A key with a $0.02 daily budget was refused with HTTP 403 and `{"code":"budget_exceeded"}`, and the message explained why: `API key has $0.001135 of budget remaining, less than this request's estimated cost of $0.001804. The estimate assumes 3 000 output tokens; a lower output token limit on the request may let it fit`. The message was excellent. It was surprising that the refusal is a 403 rather than 402 or 429, and that it is based on an estimate from `max_tokens`, so apps need to set `max_tokens` to make small budgets predictable.
 

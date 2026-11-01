@@ -207,3 +207,62 @@ pre.report, pre.raw {
 table { width: 100%; border-collapse: collapse; font-size: 15px; }
 th, td { text-align: left; padding: 10px 6px; border-bottom: 1px solid var(--line); font-weight: 500; }
 th { color: var(--muted); font-size: 13px; }
+
+/* ---------- 404 page ---------- */
+.nf { --nf-road: #1b2733; --nf-glass: #cfe3f1; text-align: center; padding-top: 20px; }
+.content.nf { max-width: 860px; }
+@media (prefers-color-scheme: dark) { .nf { --nf-road: #070b10; --nf-glass: #6f8ea6; } }
+
+.nf-code {
+  display: flex; align-items: center; justify-content: center; gap: 0.02em;
+  margin: 0; font-size: clamp(96px, 24vw, 210px); font-weight: 800; line-height: 0.92; letter-spacing: -0.05em;
+}
+.nf-d { display: inline-block; opacity: 0; animation: nf-drop 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+.nf-d1 { animation-delay: 0.05s; }
+.nf-d2 { animation-delay: 0.2s; }
+.nf-ring { width: 0.74em; height: 0.74em; flex: none; margin: 0 0.04em; opacity: 0; animation: nf-pop 0.6s 0.12s ease-out forwards, nf-turn 16s 0.7s linear infinite; }
+.nf-orbit { transform-box: view-box; transform-origin: 50% 50%; animation: nf-turn 3.2s linear infinite; }
+
+.nf-scene {
+  display: block; width: 100%; max-width: 820px; height: auto; margin: 4px auto 0; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+.nf-cap { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+.nf-hills, .nf-road { will-change: transform; }
+.nf-hills { animation: nf-scroll 42s linear infinite; }
+.nf-road { animation: nf-scroll 6s linear infinite; }
+.nf-spin { transform-box: fill-box; transform-origin: center; animation: nf-turn 0.82s linear infinite; }
+.nf-body { transform-box: fill-box; transform-origin: 50% 100%; animation: nf-bob 6s ease-in-out infinite; }
+.nf-hop-f { animation: nf-hop-f 6s ease-in-out infinite; }
+.nf-hop-r { animation: nf-hop-r 6s ease-in-out infinite; }
+.nf-pulse { transform-box: fill-box; transform-origin: center; animation: nf-pulse 1.4s ease-out infinite; }
+
+.nf h1 { font-size: clamp(26px, 5.4vw, 38px); letter-spacing: -0.03em; margin: 18px 0 8px; }
+.nf-lead { max-width: 46ch; margin: 0 auto 22px; color: var(--muted); }
+.nf-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+
+@keyframes nf-scroll { to { transform: translateX(-600px); } }
+@keyframes nf-turn { to { transform: rotate(360deg); } }
+@keyframes nf-drop { from { opacity: 0; transform: translateY(-0.5em); } to { opacity: 1; transform: none; } }
+@keyframes nf-pop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
+@keyframes nf-pulse { from { opacity: 0.7; transform: scale(1); } to { opacity: 0; transform: scale(4.5); } }
+/* Wheels meet the bumps at 0.62 s, 1.38 s, 3.62 s and 4.38 s of the 6 s loop */
+@keyframes nf-hop-f {
+  0%, 7.6%, 13%, 57.6%, 63%, 100% { transform: none; }
+  10.3%, 60.3% { transform: translateY(-9px); }
+}
+@keyframes nf-hop-r {
+  0%, 20.3%, 25.7%, 70.3%, 75.7%, 100% { transform: none; }
+  23%, 73% { transform: translateY(-9px); }
+}
+@keyframes nf-bob {
+  0%, 7.6%, 13%, 20.3%, 25.7%, 57.6%, 63%, 70.3%, 75.7%, 100% { transform: none; }
+  10.3%, 60.3% { transform: translateY(-5px) rotate(-2.2deg); }
+  23%, 73% { transform: translateY(-5px) rotate(2.2deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nf-d, .nf-ring, .nf-orbit, .nf-hills, .nf-road, .nf-spin, .nf-body, .nf-hop-f, .nf-hop-r, .nf-pulse { animation: none !important; }
+  .nf-d, .nf-ring { opacity: 1; }
+  .nf-pulse { display: none; }
+}

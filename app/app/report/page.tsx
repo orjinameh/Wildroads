@@ -150,7 +150,15 @@ export default function ReportPage() {
 
       {out?.budget && (
         <div className="r-alert warn">
-          <strong>This community group has used up its AI budget.</strong> Reports are paused until the budget resets or the group admin raises it. Pick another group above.
+          {/member has exceeded/i.test(out.error ?? "") ? (
+            <>
+              <strong>The person who owns this group&rsquo;s key has reached their personal spending limit.</strong> Otari enforces a ceiling per member, on top of each group&rsquo;s own budget. It resets on its schedule, or an admin can raise it. Pick another group above.
+            </>
+          ) : (
+            <>
+              <strong>This community group has used up its AI budget.</strong> Reports are paused until the budget resets or the group admin raises it. Pick another group above.
+            </>
+          )}
         </div>
       )}
       {friendly && <div className="r-alert err">{friendly}</div>}

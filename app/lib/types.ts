@@ -12,7 +12,7 @@ export type Cell = {
 export type TrafficBand = { daypart: number; n: number; speedKph: number };
 export type TrafficCell = { id: string; lat: number; lon: number; bands: TrafficBand[] };
 
-export type CellsResult = { cells: Cell[]; traffic: TrafficCell[]; totalSegments: number; totalTrips: number };
+export type CellsResult = { cells: Cell[]; traffic: TrafficCell[]; totalSegments: number; totalTrips: number; firstDay?: string | null; lastDay?: string | null };
 
 export type NewSegment = { cellLat: number; cellLon: number; rri: number; speedKph: number; samples: number };
 

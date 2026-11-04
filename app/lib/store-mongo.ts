@@ -101,7 +101,8 @@ export async function createMongoStore(uri: string): Promise<Store> {
       }
       const traffic = [...tmap.values()].map((c) => ({ ...c, bands: c.bands.sort((a, b) => a.daypart - b.daypart) }));
       const [totalSegments, totalTrips] = await Promise.all([segments.countDocuments({}), trips.countDocuments({})]);
-      return { cells, traffic, totalSegments, totalTrips };
+      const [first, last] = await Promise.all([trips.find({}).sort({ day: 1 }).limit(1).next(), trips.find({}).sort({ day: -1 }).limit(1).next()]);
+      return { cells, traffic, totalSegments, totalTrips, firstDay: first?.day ?? null, lastDay: last?.day ?? null };
     },
   };
 }

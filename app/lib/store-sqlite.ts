@@ -84,7 +84,8 @@ export async function createSqliteStore(): Promise<Store> {
           .map(([daypart, arr]) => ({ daypart, n: arr.length, speedKph: arr.reduce((s, x) => s + x, 0) / arr.length }));
         traffic.push({ id: key, lat: c.lat, lon: c.lon, bands });
       }
-      return { cells, traffic, totalSegments: totals.segs, totalTrips: totals.trips };
+      const span = db.prepare(`SELECT MIN(day) AS a, MAX(day) AS b FROM trips`).get() as { a: string | null; b: string | null };
+      return { cells, traffic, totalSegments: totals.segs, totalTrips: totals.trips, firstDay: span.a, lastDay: span.b };
     },
   };
 }

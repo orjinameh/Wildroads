@@ -11,6 +11,7 @@ You receive aggregated, crowd-sourced phone-vibration data for road cells of abo
 Each cell is [id, lat, lon, rri, trips, spread].
 "traffic" lists cells with speed observed by our own users: [id, lat, lon, [[daypart, trips, mean_speed_kph], ...]].
 daypart 0=night 22-05h, 1=morning 05-11h, 2=midday 11-16h, 3=evening 16-22h (local time). A speed under 15 km/h counts as "slow".
+Traffic is a TYPICAL-SPEED-BY-TIME-OF-DAY summary averaged over every trip recorded between dataWindow.firstTripDay and dataWindow.lastTripDay (UTC days). It is not live traffic and says nothing about today.
 This is NOT a full traffic feed: it only covers roads our users drove, so it says nothing about roads without readings.
 
 RULES
@@ -22,11 +23,12 @@ RULES
 OUTPUT (compact JSON only, no markdown):
 {"overall":{"cells":n,"trips":n,"median_rri":x,"p90_rri":x,"confirmed_cells":n},
  "clusters":[{"lat":x,"lon":x,"cells":n,"mean_rri":x,"min_trips":n,"max_trips":n,"confirmed":true|false}],
- "traffic":{"cells":n,"slow_cells_by_daypart":{"0":n,"1":n,"2":n,"3":n},"median_speed_by_daypart":{"0":x,"1":x,"2":x,"3":x},
+ "data_window":{"first_trip_day":"...","last_trip_day":"...","trips":n},
+ "traffic":{"cells":n,"trips_by_daypart":{"0":n,"1":n,"2":n,"3":n},"mean_speed_by_daypart":{"0":x,"1":x,"2":x,"3":x},"slowest_daypart":d or null,"slow_cells_by_daypart":{"0":n,"1":n,"2":n,"3":n},"median_speed_by_daypart":{"0":x,"1":x,"2":x,"3":x},
    "slow_clusters":[{"lat":x,"lon":x,"cells":n,"mean_kph":x,"daypart":d,"min_trips":n}]},
  "agency":{"name":"...","url":"https://..."} or null,
  "limits":["..."]}
-Use null where a daypart has no readings. Return at most 8 roughness clusters (roughest first) and at most 5 slow clusters (slowest first).`;
+For each daypart, "trips_by_daypart" is the largest trip count seen in any cell for that daypart, and "mean_speed_by_daypart" is the trip-weighted mean speed over all cells with readings. Use null where a daypart has no readings. Return at most 8 roughness clusters (roughest first) and at most 5 slow clusters (slowest first).`;
 
 const WRITER_PROMPT = `You are the WRITER in a two-step road-report pipeline. You receive the analyst's computed findings as JSON. You have no other data and no tools.
 Write a short road-condition report for a community group or road agency, in plain language.
@@ -37,11 +39,12 @@ RULES
 - Label clusters with confirmed=false as UNCONFIRMED and say a single trip is not enough to act on.
 - If the findings look empty or inconsistent, say so rather than filling in.
 
+FORMAT: Markdown with ## headings and - bullet lists, no tables, no code fences, no HTML. Do not wrap the report in a code block.
 OUTPUT
 1. Summary (3 sentences maximum)
 2. Top hotspot clusters (list: centre lat/lon, number of cells, mean roughness, trips)
 3. Who to send this to (only if the findings include an agency; use its name and url exactly as given, otherwise leave this section out)
-4. Traffic (only if the findings contain speed readings; say which parts of the day have data and which have none)
+4. Typical traffic by time of day (only if the findings contain speed readings). Say the data window (first to last trip day) and that these are average speeds from past trips, never live conditions. Give the mean speed for each part of the day that has data (night 22-05h, morning 05-11h, midday 11-16h, evening 16-22h) with its trip count, name the slowest part of the day, and say plainly which parts of the day have no data. Never say traffic is, was or will be at any specific time today.
 5. What this data cannot tell you (always say traffic covers only roads our users drove, and that one trip cannot separate congestion from a red light or parked car)`;
 
 // Each community group has its own Otari key (with its own budget), kept on the server only.
@@ -126,7 +129,7 @@ export async function POST(req: Request) {
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : "Could not read road data." }, { status: 500 });
   }
-  const { cells, traffic, totalSegments, totalTrips } = loaded;
+  const { cells, traffic, totalSegments, totalTrips, firstDay, lastDay } = loaded;
   if (cells.length === 0) {
     return Response.json({ error: "No road data has been uploaded yet. Record a trip first." }, { status: 409 });
   }
@@ -137,6 +140,7 @@ export async function POST(req: Request) {
     cellsShown: top.length,
     totalSegments,
     totalTrips,
+    dataWindow: { firstTripDay: firstDay ?? null, lastTripDay: lastDay ?? null, reportDate: new Date().toISOString().slice(0, 10) },
     focus: focus || null,
     area: area || null,
     traffic: [...traffic]

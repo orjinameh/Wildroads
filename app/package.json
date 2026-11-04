@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "test": "node --test lib/segmenter.test.ts"
+    "test": "node --test lib/segmenter.test.ts lib/stretches.test.ts"
   },
   "engines": {
     "node": ">=22.18"

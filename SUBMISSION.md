@@ -6,12 +6,12 @@ Items marked **TODO** need a fact only you have.
 ## 1. Basics
 
 - **Project name:** Wildroads
-- **Otari signup email:** TODO (the exact email used to sign up at otari.ai)
+- **Otari signup email:** peterstephen22000@gmail.com
 - **One line:** Wildroads turns phone sensors into a community road map: drivers' phones measure road roughness and speed on-device, and AI reports written through Otari tell communities where the bad roads and slow roads are.
 
 ## 2. Repository
 
-- **Public GitHub repo:** https://github.com/orjinameh/Wildroads (TODO: confirm it is public)
+- **Public GitHub repo:** https://github.com/orjinameh/Wildroads (public)
 - **Hackathon branch:** `hackathon` (TODO: create and push it, see below)
 
 ```

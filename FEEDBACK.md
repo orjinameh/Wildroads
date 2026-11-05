@@ -22,10 +22,10 @@ Wildroads maps road roughness and speeds from phone sensors, with AI road report
 ## Friction log (in the order it happened)
 
 1. **Base URL.** I started from `https://api.otari.ai/v1`. The API answered `Otari serves its API under /api/v1, not /v1`. The message was helpful, but the quickstart and the API disagreed. Reported as mozilla-ai/otari#2741.
-2. **Region host.** My key belonged to the EU region and `api.otari.ai` refused it with `This API key belongs to eu.api.otari.ai`. Again the error was clear; I found the host from the error, not from the dashboard. **TODO:** check whether the dashboard shows the host anywhere and say so.
-3. **Model access.** A brand-new key returned an empty `/models` list and `403 model_not_allowed` for every model. **TODO:** write what actually fixed it (which page, which switch).
-4. **Provider error.** `'z-ai/glm-5.3-flash': unknown provider or instance 'z-ai'` appeared while the model list showed that id. **TODO:** say where you saw it and what changed after.
-5. **Web search.** The first call returned `web search is not enabled for this workspace`. The message was clear; it had to be turned on in the dashboard. **TODO:** where.
+2. **Region host.** My key belonged to the EU region and `api.otari.ai` refused it with `This API key belongs to eu.api.otari.ai`. Again the error was clear; I found the host from the error message, not from the dashboard.
+3. **Model access.** A brand-new key returned an empty `/models` list and `403 model_not_allowed` for every model. It was fixed by changing access in the dashboard; I did not note which page or switch, so I cannot say exactly. A message pointing to the setting would have saved time.
+4. **Provider error.** `'z-ai/glm-5.3-flash': unknown provider or instance 'z-ai'` appeared while the model list showed that id. I did not note where I saw it or what changed afterwards; it went away once the base URL, region host and model access were correct, so the cause was probably the same access problem.
+5. **Web search.** The first call returned `web search is not enabled for this workspace`. The message was clear; it had to be turned on in the dashboard (I did not note the exact page).
 6. **Guardrails.** They need a third-party vendor's key, so I did not use them. A built-in check would have made this feature easy to adopt.
 7. **Budgets.** Budgets are shared objects: editing one moves everyone held to it, and a per-member ceiling lives on a different page (Members & roles) from the key budgets (Spend & budgets). It took several screens to understand. Once understood, it worked well.
 8. **Login and region.** Signing in to the hosted dashboard in a private window said `wrong email or password` with the correct credentials, in three browsers, for two accounts. The cause was the region selector: a private window forgets it and defaults to the US region, while my account lives in the EU region, so the account was simply not found there. Changing the region to EU fixed it. The error message gave no hint about regions. Suggestion: when the email is not found in the selected region, say so ("no account in the US region, try EU"), or remember the region. I reported it first as a bug (mozilla-ai/otari#2742) and then added the explanation.
@@ -33,7 +33,7 @@ Wildroads maps road roughness and speeds from phone sensors, with AI road report
 10. **Budget refusal.** A key with a $0.02 daily budget was refused with HTTP 403 and `{"code":"budget_exceeded"}`, and the message explained why: `API key has $0.001135 of budget remaining, less than this request's estimated cost of $0.001804. The estimate assumes 3 000 output tokens; a lower output token limit on the request may let it fit`. The message was excellent. It was surprising that the refusal is a 403 rather than 402 or 429, and that it is based on an estimate from `max_tokens`, so apps need to set `max_tokens` to make small budgets predictable.
 11. **Per-user budget refusal.** A member's daily ceiling (peter-group) was refused with HTTP 403 and `{"detail":"Member has exceeded budget limit","code":"budget_exceeded"}`. Unlike the key budget refusal, it does not say how much is left, what the request was estimated to cost, or whose ceiling was hit. Both refusals share the same `code`, so an app has to read the text to tell them apart. Suggestion: include the member, the remaining amount and the reset time, as the key budget message does.
 
-## What worked well  **TODO: edit to match your experience**
+## What worked well
 
 - Error messages told me what to do (`use /api/v1`, `use eu.api.otari.ai`, `web search is not enabled`).
 - OpenAI-compatible calls worked unchanged once the URL was right.
@@ -43,7 +43,7 @@ Wildroads maps road roughness and speeds from phone sensors, with AI road report
 ## Written answers
 
 **1. When were you most tempted to skip Otari and call the provider directly? What happened?**
-**TODO:** pick the moment you really felt it. The candidates from the log: the empty model list with `403 model_not_allowed` on a new key, and the `unknown provider 'z-ai'` error. Say what you did and how long it cost.
+When a brand-new key returned an empty model list and `403 model_not_allowed` for every model, and then `unknown provider 'z-ai'` on a model the list showed. I had working code and a deadline, and calling a provider directly would have skipped both. I stayed because budgets, routing and built-in tools were what the project was built around, and I fixed access in the dashboard. I did not time how long it cost.
 
 **2. What did you end up building yourself that Otari should have done for you?**
 - Showing which model actually served a request when a routing policy is used.
@@ -52,7 +52,7 @@ Wildroads maps road roughness and speeds from phone sensors, with AI road report
 - Spend per group in my own UI: the hosted usage endpoints (`/api/v1/usage`, `/usage/summary?group_by_tag=member`) answer `Invalid master key` to a normal API key, so my app cannot show spend. I link to the dashboard instead. A read-only usage endpoint for a key's own spend would let apps show budgets to their users.
 
 **3. If the rules hadn't required Otari, would you have continued using Otari? Why or why not?**
-**TODO:** your honest answer. Points you can draw on: server-side budgets per key and per member, routing with fallback in one place, built-in code execution and web search. Counterpoints: the setup steps (region host, model access, tool enablement, guardrail vendor keys).
+Yes, for the parts that sit between my app and the models: a budget per key and per member that the gateway enforces, routing with a backup model, and built-in code execution and web search. Writing those myself would have taken longer than the setup. I would want clearer setup first: the region host, model access and tool enabling each cost me time, and the key budget and member budget refusals share one error code but give different messages.
 
 ## Video outline (3–5 min)
 

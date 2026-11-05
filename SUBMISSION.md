@@ -6,13 +6,13 @@ Items marked **TODO** need a fact only you have.
 ## 1. Basics
 
 - **Project name:** Wildroads
-- **Otari signup email:** TODO (the exact email used to sign up at otari.ai)
+- **Otari signup email:** peterstephen22000@gmail.com
 - **One line:** Wildroads turns phone sensors into a community road map: drivers' phones measure road roughness and speed on-device, and AI reports written through Otari tell communities where the bad roads and slow roads are.
 
 ## 2. Repository
 
-- **Public GitHub repo:** https://github.com/orjinameh/Wildroads (TODO: confirm it is public)
-- **Hackathon branch:** `hackathon` (TODO: create and push it, see below)
+- **Public GitHub repo:** https://github.com/orjinameh/Wildroads (public)
+- **Hackathon branch:** `hackathon` (pushed)
 
 ```
 git checkout -b hackathon
@@ -21,13 +21,9 @@ git push -u origin hackathon
 
 ## 3. First commit where Otari came in
 
-TODO: run this and put the hash in the link.
+Link: https://github.com/orjinameh/Wildroads/commit/f0f16e003d11b08679e61b9e0d0df5babf83a0cc
 
-```
-git log --reverse --format='%h %s' -- app/app/api/report/route.ts | head -1
-```
-
-Link: `https://github.com/orjinameh/Wildroads/commit/<hash>`
+This is the initial scaffold, where Otari-written road reports first appeared. At that point the app used a self-hosted Otari; it moved to the hosted Otari platform in later commits (the Docker files were removed then).
 
 ## 4. Otari features used
 
@@ -38,7 +34,7 @@ Each is used by the running app, not just enabled.
 | Multiple models in distinct roles | Analyst `deepseek/deepseek-v4.1-flash` (runs code, returns numbers) and writer `z-ai/glm-5.3-flash` (writes the report from the analyst's numbers only) |
 | Code execution | The analyst computes every statistic with `otari_code_execution` |
 | Web search | The analyst searches for the agency responsible for roads in the chosen area (`otari_web_search`) |
-| Model routing and fallbacks | Routing policies `wildroads-analyst` (and `wildroads-writer`, TODO if created), each with a backup model; the app sends the policy name as `model` |
+| Model routing and fallbacks | Routing policies `wildroads-analyst` (DeepSeek, backup GLM) and `wildroads-writer` (GLM, backup DeepSeek), each with a backup model; the app sends the policy name as `model` |
 | Budgets and spending limits | One key per community group, each with its own budget; the app shows a clear message on `budget_exceeded` |
 | Per-user budgets | A second workspace member holds their own spending ceiling; their key is one of the community groups |
 
@@ -65,5 +61,5 @@ Rule for the video: show real data only.
 
 ## 7. Feedback
 
-- Written feedback: see `FEEDBACK.md` (fill the TODO answers first).
+- Written feedback: see `FEEDBACK.md` (answers are filled in).
 - Optional 3-5 min screen recording: follow the four questions in the submission rules (what you built, what worked, what did not, what is missing).

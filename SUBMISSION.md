@@ -38,7 +38,7 @@ Each is used by the running app, not just enabled.
 | Multiple models in distinct roles | Analyst `deepseek/deepseek-v4.1-flash` (runs code, returns numbers) and writer `z-ai/glm-5.3-flash` (writes the report from the analyst's numbers only) |
 | Code execution | The analyst computes every statistic with `otari_code_execution` |
 | Web search | The analyst searches for the agency responsible for roads in the chosen area (`otari_web_search`) |
-| Model routing and fallbacks | Routing policies `wildroads-analyst` (and `wildroads-writer`, TODO if created), each with a backup model; the app sends the policy name as `model` |
+| Model routing and fallbacks | Routing policies `wildroads-analyst` (DeepSeek, backup GLM) and `wildroads-writer` (GLM, backup DeepSeek), each with a backup model; the app sends the policy name as `model` |
 | Budgets and spending limits | One key per community group, each with its own budget; the app shows a clear message on `budget_exceeded` |
 | Per-user budgets | A second workspace member holds their own spending ceiling; their key is one of the community groups |
 

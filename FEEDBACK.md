@@ -14,7 +14,7 @@ Wildroads maps road roughness and speeds from phone sensors, with AI road report
 - Two open-weight models in distinct roles: `deepseek/deepseek-v4.1-flash` is the **analyst** (runs code, returns numbers as JSON), `z-ai/glm-5.3-flash` is the **writer** (plain-language report from the analyst's numbers only, no tools).
 - Code execution (`otari_code_execution`) used by the analyst for every statistic.
 - Web search used by the analyst to find the responsible road agency for an area.
-- Routing policies: `wildroads-analyst` (DeepSeek, backup GLM).
+- Routing policies: `wildroads-analyst` (DeepSeek, backup GLM) and `wildroads-writer` (GLM, backup DeepSeek); the app sends the policy name as the model.
 - Budgets: one budget per community group's API key, plus a separate per-member ceiling.
 - Per-user budgets: a second member with their own daily ceiling.
 - Each community group's key stays on the server; road users never see a key.

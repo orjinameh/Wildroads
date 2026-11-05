@@ -12,7 +12,7 @@ Items marked **TODO** need a fact only you have.
 ## 2. Repository
 
 - **Public GitHub repo:** https://github.com/orjinameh/Wildroads (public)
-- **Hackathon branch:** `hackathon` (TODO: create and push it, see below)
+- **Hackathon branch:** `hackathon` (pushed)
 
 ```
 git checkout -b hackathon
@@ -61,5 +61,5 @@ Rule for the video: show real data only.
 
 ## 7. Feedback
 
-- Written feedback: see `FEEDBACK.md` (fill the TODO answers first).
+- Written feedback: see `FEEDBACK.md` (answers are filled in).
 - Optional 3-5 min screen recording: follow the four questions in the submission rules (what you built, what worked, what did not, what is missing).

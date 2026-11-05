@@ -2,8 +2,6 @@
 
 Wildroads maps road roughness and speeds from phone sensors, with AI road reports written through Otari.
 
-> Sections marked **TODO** need your own words or a fact only you know. Everything else was observed while building.
-
 ## Issues opened on the Otari repo
 
 - https://github.com/mozilla-ai/otari/issues/2741 (hosted quickstart base URL does not match the API)

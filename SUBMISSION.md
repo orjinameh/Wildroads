@@ -21,13 +21,9 @@ git push -u origin hackathon
 
 ## 3. First commit where Otari came in
 
-TODO: run this and put the hash in the link.
+Link: https://github.com/orjinameh/Wildroads/commit/f0f16e003d11b08679e61b9e0d0df5babf83a0cc
 
-```
-git log --reverse --format='%h %s' -- app/app/api/report/route.ts | head -1
-```
-
-Link: `https://github.com/orjinameh/Wildroads/commit/<hash>`
+This is the initial scaffold, where Otari-written road reports first appeared. At that point the app used a self-hosted Otari; it moved to the hosted Otari platform in later commits (the Docker files were removed then).
 
 ## 4. Otari features used
 

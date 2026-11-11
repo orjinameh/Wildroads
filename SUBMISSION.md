@@ -1,7 +1,6 @@
 # Submission draft: Developers Wilding
 
 Deadline: **Nov 11, 11:59 PM** (timezone not stated; submit by the evening of Nov 10).
-Items marked **TODO** need a fact only you have.
 
 ## 1. Basics
 
@@ -47,7 +46,9 @@ Open-weight models: DeepSeek V4.1 Flash and GLM 5.3 Flash, in different roles.
 
 ## 6. Demo video (3-5 min)
 
-TODO: link. Script:
+Link: https://youtu.be/C0URLrS5BfE
+
+Script used:
 
 1. **The problem (20 s).** Bad roads and slow roads have no community-owned data; drivers should not use their phones.
 2. **The data (40 s).** The map: roughness layer, then the Traffic layer with the time-of-day filter. Say plainly how many trips and cells there are and that they are real. Mention privacy: only ~22 m cells, no identity, raw sensor data never leaves the phone.

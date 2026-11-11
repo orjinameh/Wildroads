@@ -2,7 +2,7 @@ import { loadCells } from "@/lib/cells";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // seconds; the model may run code before answering
+export const maxDuration = 300; // seconds; the analyst runs code and may search the web before answering
 
 const ANALYST_PROMPT = `You are the ANALYST in a two-step road-report pipeline. A separate writer model will turn your output into the final report, so output facts, not prose.
 You receive aggregated, crowd-sourced phone-vibration data for road cells of about 22 m.
@@ -159,7 +159,7 @@ export async function POST(req: Request) {
     let search = wantSearch;
     const attempt = async (m: string): Promise<Response | Error> => {
       try {
-        return await callOtari(base, key, m, member, role, system, user, search, started + (role === "analyst" ? 44000 : 57000));
+        return await callOtari(base, key, m, member, role, system, user, search, started + (role === "analyst" ? 170000 : 280000));
       } catch (err) {
         return err instanceof Error ? err : new Error(String(err));
       }
@@ -217,7 +217,7 @@ export async function POST(req: Request) {
   };
   const REMINDER = "\n\nREMINDER: run the code tool on this data now, then reply with ONLY the JSON object described in OUTPUT. No introduction, no explanation, no markdown.";
   let analysis = await runStage("analyst", ANALYST_PROMPT, JSON.stringify(payload), analystModel, writerModel, Boolean(area));
-  if (!("error" in analysis) && !findingsOf(analysis.content) && Date.now() - started < 18000) {
+  if (!("error" in analysis) && !findingsOf(analysis.content) && Date.now() - started < 60000) {
     analysis = await runStage("analyst", ANALYST_PROMPT, JSON.stringify(payload) + REMINDER, analystModel, writerModel, Boolean(area));
   }
   if ("error" in analysis) return Response.json({ error: analysis.error, stage: "analyst", budget: Boolean(analysis.budget) }, { status: analysis.status });

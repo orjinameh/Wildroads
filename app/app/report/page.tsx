@@ -96,7 +96,13 @@ export default function ReportPage() {
         /* ignore */
       }
       const res = await fetch("/api/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ group, focus, area }) });
-      setOut((await res.json()) as ReportResponse);
+      const text = await res.text();
+      try {
+        setOut(JSON.parse(text) as ReportResponse);
+      } catch {
+        // The server (or the platform) answered with something that is not JSON, usually a timeout page.
+        setOut({ error: `The server did not answer in time (status ${res.status}). ${text.slice(0, 160)}`, stage: "response" });
+      }
     } catch (e) {
       setOut({ error: e instanceof Error ? e.message : String(e) });
     } finally {

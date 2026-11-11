@@ -73,7 +73,7 @@ function chatUrl(base: string): string {
   return /\/v1$/.test(b) ? `${b}/chat/completions` : `${b}/api/v1/chat/completions`;
 }
 
-async function callOtari(base: string, key: string, model: string, member: string, role: "analyst" | "writer", system: string, userContent: string, webSearch: boolean) {
+async function callOtari(base: string, key: string, model: string, member: string, role: "analyst" | "writer", system: string, userContent: string, webSearch: boolean, deadline: number) {
   const body: Record<string, unknown> = {
     model,
     messages: [
@@ -91,7 +91,8 @@ async function callOtari(base: string, key: string, model: string, member: strin
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(role === "analyst" ? 100000 : 40000),
+    // Stay inside the function time limit (maxDuration) so the caller gets a JSON error, not a platform timeout page.
+    signal: AbortSignal.timeout(Math.max(3000, deadline - Date.now())),
   });
 }
 
@@ -153,11 +154,12 @@ export async function POST(req: Request) {
 
   // One stage: try the primary model; on a network error or 5xx, try the other model once.
   let webSearchUsed = false;
+  const started = Date.now();
   const runStage = async (role: "analyst" | "writer", system: string, user: string, primary: string, alt: string, wantSearch = false): Promise<Stage> => {
     let search = wantSearch;
     const attempt = async (m: string): Promise<Response | Error> => {
       try {
-        return await callOtari(base, key, m, member, role, system, user, search);
+        return await callOtari(base, key, m, member, role, system, user, search, started + (role === "analyst" ? 44000 : 57000));
       } catch (err) {
         return err instanceof Error ? err : new Error(String(err));
       }
@@ -215,13 +217,13 @@ export async function POST(req: Request) {
   };
   const REMINDER = "\n\nREMINDER: run the code tool on this data now, then reply with ONLY the JSON object described in OUTPUT. No introduction, no explanation, no markdown.";
   let analysis = await runStage("analyst", ANALYST_PROMPT, JSON.stringify(payload), analystModel, writerModel, Boolean(area));
-  if (!("error" in analysis) && !findingsOf(analysis.content)) {
+  if (!("error" in analysis) && !findingsOf(analysis.content) && Date.now() - started < 18000) {
     analysis = await runStage("analyst", ANALYST_PROMPT, JSON.stringify(payload) + REMINDER, analystModel, writerModel, Boolean(area));
   }
   if ("error" in analysis) return Response.json({ error: analysis.error, stage: "analyst", budget: Boolean(analysis.budget) }, { status: analysis.status });
   const found = findingsOf(analysis.content);
   if (!found) {
-    return Response.json({ error: `The analyst did not return findings. It said: ${analysis.content.slice(0, 300)}`, stage: "analyst", budget: false }, { status: 502 });
+    return Response.json({ error: `The analyst did not return findings in time. It said: ${analysis.content.slice(0, 300)}`, stage: "analyst", budget: false }, { status: 502 });
   }
 
   // Totals come from the database, not from the model: overwrite them so the writer cannot repeat a miscount.

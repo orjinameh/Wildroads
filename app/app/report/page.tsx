@@ -15,6 +15,7 @@ type ReportResponse = {
   webSearch?: boolean | null;
   cellsAnalysed?: number;
   totalCells?: number;
+  totals?: { trips: number; cells: number; firstDay: string | null; lastDay: string | null };
   error?: string;
 };
 

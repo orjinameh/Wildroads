@@ -7,7 +7,7 @@ export const maxDuration = 60; // seconds; the model may run code before answeri
 const ANALYST_PROMPT = `You are the ANALYST in a two-step road-report pipeline. A separate writer model will turn your output into the final report, so output facts, not prose.
 You receive aggregated, crowd-sourced phone-vibration data for road cells of about 22 m.
 "rri" is a RELATIVE roughness index (higher = rougher). It is not an engineering standard such as IRI.
-"trips" is how many independent trips measured that cell. "spread" is the standard deviation of the per-trip values (null when only one trip).
+"trips" is how many independent trips measured that cell. NEVER add per-cell trip counts together: the number of trips in the whole data set is the input field totalTrips, and overall.trips must equal it. "spread" is the standard deviation of the per-trip values (null when only one trip).
 Each cell is [id, lat, lon, rri, trips, spread].
 "traffic" lists cells with speed observed by our own users: [id, lat, lon, [[daypart, trips, mean_speed_kph], ...]].
 daypart 0=night 22-05h, 1=morning 05-11h, 2=midday 11-16h, 3=evening 16-22h (local time). A speed under 15 km/h counts as "slow".
@@ -201,12 +201,26 @@ export async function POST(req: Request) {
   const analysis = await runStage("analyst", ANALYST_PROMPT, JSON.stringify(payload), analystModel, writerModel, Boolean(area));
   if ("error" in analysis) return Response.json({ error: analysis.error, stage: "analyst", budget: Boolean(analysis.budget) }, { status: analysis.status });
 
-  const writing = await runStage("writer", WRITER_PROMPT, analysis.content, writerModel, analystModel);
-  if ("error" in writing) return Response.json({ error: writing.error, stage: "writer", budget: Boolean(writing.budget), analysis: analysis.content, analystModel: analysis.model }, { status: writing.status });
+  // Totals come from the database, not from the model: overwrite them so the writer cannot repeat a miscount.
+  const totals = { trips: totalTrips, cells: cells.length, firstDay: firstDay ?? null, lastDay: lastDay ?? null };
+  let analysisText = analysis.content;
+  try {
+    const raw = analysis.content.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+    const j = JSON.parse(raw) as Record<string, any>;
+    j.overall = { ...(j.overall ?? {}), trips: totals.trips, cells: totals.cells };
+    j.data_window = { first_trip_day: totals.firstDay, last_trip_day: totals.lastDay, trips: totals.trips };
+    analysisText = JSON.stringify(j);
+  } catch {
+    /* analyst output was not clean JSON: pass it on unchanged */
+  }
+
+  const writing = await runStage("writer", WRITER_PROMPT, analysisText, writerModel, analystModel);
+  if ("error" in writing) return Response.json({ error: writing.error, stage: "writer", budget: Boolean(writing.budget), analysis: analysisText, analystModel: analysis.model }, { status: writing.status });
 
   return Response.json({
     report: writing.content,
-    analysis: analysis.content,
+    analysis: analysisText,
+    totals,
     analystModel: analysis.model,
     writerModel: writing.model,
     fallbacks: { analyst: analysis.fellBack, writer: writing.fellBack },

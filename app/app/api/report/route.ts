@@ -199,22 +199,37 @@ export async function POST(req: Request) {
     return { content, model: used, fellBack };
   };
 
-  const analysis = await runStage("analyst", ANALYST_PROMPT, JSON.stringify(payload), analystModel, writerModel, Boolean(area));
+  // The analyst must return a JSON object. Models sometimes stop after a sentence like "I'll compute...", so check the
+  // output, retry once with a firmer reminder, and never hand a non-answer to the writer.
+  const findingsOf = (text: string): Record<string, any> | null => {
+    const t = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+    const first = t.indexOf("{");
+    const last = t.lastIndexOf("}");
+    if (first < 0 || last <= first) return null;
+    try {
+      const j = JSON.parse(t.slice(first, last + 1)) as Record<string, any>;
+      return j && typeof j === "object" && j.overall ? j : null;
+    } catch {
+      return null;
+    }
+  };
+  const REMINDER = "\n\nREMINDER: run the code tool on this data now, then reply with ONLY the JSON object described in OUTPUT. No introduction, no explanation, no markdown.";
+  let analysis = await runStage("analyst", ANALYST_PROMPT, JSON.stringify(payload), analystModel, writerModel, Boolean(area));
+  if (!("error" in analysis) && !findingsOf(analysis.content)) {
+    analysis = await runStage("analyst", ANALYST_PROMPT, JSON.stringify(payload) + REMINDER, analystModel, writerModel, Boolean(area));
+  }
   if ("error" in analysis) return Response.json({ error: analysis.error, stage: "analyst", budget: Boolean(analysis.budget) }, { status: analysis.status });
+  const found = findingsOf(analysis.content);
+  if (!found) {
+    return Response.json({ error: `The analyst did not return findings. It said: ${analysis.content.slice(0, 300)}`, stage: "analyst", budget: false }, { status: 502 });
+  }
 
   // Totals come from the database, not from the model: overwrite them so the writer cannot repeat a miscount.
   const totals = { trips: totalTrips, cells: cells.length, firstDay: firstDay ?? null, lastDay: lastDay ?? null };
-  let analysisText = analysis.content;
-  try {
-    const raw = analysis.content.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
-    const j = JSON.parse(raw) as Record<string, any>;
-    j.overall = { ...(j.overall ?? {}), trips: totals.trips, cells: totals.cells };
-    j.area = area || null;
-    j.data_window = { first_trip_day: totals.firstDay, last_trip_day: totals.lastDay, trips: totals.trips };
-    analysisText = JSON.stringify(j);
-  } catch {
-    /* analyst output was not clean JSON: pass it on unchanged */
-  }
+  found.overall = { ...(found.overall ?? {}), trips: totals.trips, cells: totals.cells };
+  found.area = area || null;
+  found.data_window = { first_trip_day: totals.firstDay, last_trip_day: totals.lastDay, trips: totals.trips };
+  const analysisText = JSON.stringify(found);
 
   const writing = await runStage("writer", WRITER_PROMPT, analysisText, writerModel, analystModel);
   if ("error" in writing) return Response.json({ error: writing.error, stage: "writer", budget: Boolean(writing.budget), analysis: analysisText, analystModel: analysis.model }, { status: writing.status });

@@ -39,6 +39,7 @@ RULES
 - Label clusters with confirmed=false as UNCONFIRMED and say a single trip is not enough to act on.
 - If the findings look empty or inconsistent, say so rather than filling in.
 
+If the findings include a non-null "area", start with the title line "## Road report: <area>" and name the area in the summary. Never say all findings are unconfirmed unless overall.confirmed_cells is 0; if some cells are confirmed, say how many (overall.confirmed_cells of overall.cells) and keep UNCONFIRMED only for clusters whose confirmed is false.
 FORMAT: Markdown with ## headings and - bullet lists, no tables, no code fences, no HTML. Do not wrap the report in a code block.
 OUTPUT
 1. Summary (3 sentences maximum)
@@ -208,6 +209,7 @@ export async function POST(req: Request) {
     const raw = analysis.content.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
     const j = JSON.parse(raw) as Record<string, any>;
     j.overall = { ...(j.overall ?? {}), trips: totals.trips, cells: totals.cells };
+    j.area = area || null;
     j.data_window = { first_trip_day: totals.firstDay, last_trip_day: totals.lastDay, trips: totals.trips };
     analysisText = JSON.stringify(j);
   } catch {
